@@ -47,7 +47,6 @@ def fallback_explanation(metrics: dict, signals: list[dict], focus: str) -> str:
     return (
         f"This prototype identified the following main signals: {top_signals}. "
         f"Recent training shows {metrics['consistency_label']} consistency and a {metrics['volume_trend']} volume trend. "
-        f"The current suggested focus is: {focus}"
     )
 
 

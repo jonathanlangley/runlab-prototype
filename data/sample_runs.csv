@@ -1,9 +1,3 @@
-
----
-
-# 4) `data/sample_runs.csv`
-
-```csv
 date,distance_km,duration_min,avg_hr,activity_type,workout_type
 2026-02-02,8.2,41,138,run,easy
 2026-02-04,10.5,47,154,run,threshold

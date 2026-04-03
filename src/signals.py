@@ -96,7 +96,7 @@ def suggested_focus(metrics: dict, signals: list[dict]) -> str:
     high_priority_titles = [s["title"] for s in signals if s["priority"] == "high"]
 
     if "Low consistency" in high_priority_titles:
-        return "Focus first on frequency and routine. More consistency is likely to have the biggest impact."
+        return "Primary focus: increase weekly run frequency. Aim to build a consistent routine before adding more volume or intensity."
     if "No threshold work detected" in high_priority_titles:
         return "A sensible next step would be to reintroduce one threshold session per week."
     if "No long run stimulus" in high_priority_titles:

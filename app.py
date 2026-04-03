@@ -17,17 +17,16 @@ st.set_page_config(
 
 st.title("RunLab Prototype")
 st.caption("Structured training insights with a lightweight AI explanation layer")
+st.markdown("""
+This prototype demonstrates how raw training data can be transformed into:
 
-st.markdown(
-    """
-This is an early prototype exploring how running data can be processed into:
-- clear metrics
-- structured signals
-- concise AI-assisted explanations
+- clear weekly metrics  
+- structured training signals  
+- simple AI-assisted explanations  
 
-The AI layer explains the outputs. It does not replace the analysis.
-"""
-)
+The goal is not to replace coaching, but to support better decision-making.
+""")
+st.info("Demo: using sample data. Upload your own CSV to analyse your training.")
 
 with st.sidebar:
     st.header("Data input")
@@ -94,9 +93,8 @@ with left:
     st.success(focus)
 
 with right:
-    st.subheader("AI explanation")
+    st.subheader("AI-assisted insight (beta)")
     st.write(ai_text)
-
 st.subheader("Weekly summary")
 st.dataframe(
     weekly.assign(
