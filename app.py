@@ -15,27 +15,55 @@ st.set_page_config(
     layout="wide",
 )
 
-st.title("RunLab Prototype")
-st.caption("Structured training insights with a lightweight AI explanation layer")
 st.markdown("""
-This prototype demonstrates how raw training data can be transformed into:
+<style>
+.block-container {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+}
 
-- clear weekly metrics
-- structured training signals
-- a primary training focus
-- simple AI-assisted explanations
+[data-testid="stMetricValue"] {
+    font-size: 1.9rem;
+}
 
-The goal is not to replace coaching, but to support better decision-making.
-""")
-st.info("Demo: using sample data. Upload your own CSV to analyse your training.")
+[data-testid="stMetricLabel"] {
+    font-size: 0.9rem;
+}
+
+h1 {
+    margin-bottom: 0.2rem;
+}
+
+h2, h3 {
+    margin-bottom: 0.35rem;
+}
+
+.small-muted {
+    color: #6b7280;
+    font-size: 0.92rem;
+}
+</style>
+""", unsafe_allow_html=True)
 
 with st.sidebar:
     st.header("Data input")
     uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
     use_sample = st.checkbox("Use sample data", value=uploaded_file is None)
 
-    st.markdown("### Expected columns")
-    st.code("date, distance_km, duration_min, avg_hr, activity_type, workout_type")
+    st.markdown("""
+<div style="
+    background-color: #f5f5f5;
+    padding: 10px;
+    border-radius: 6px;
+    font-family: monospace;
+    font-size: 0.9rem;
+    white-space: normal;
+">
+date, distance_km, duration_min, avg_hr, activity_type, workout_type
+</div>
+""", unsafe_allow_html=True)
 
 df_raw = None
 
@@ -45,7 +73,9 @@ elif use_sample:
     df_raw = pd.read_csv("data/sample_runs.csv")
 
 if df_raw is None:
-    st.info("Upload a CSV file or tick 'Use sample data' to begin.")
+    st.title("RunLab Prototype")
+    st.caption("Structured training insights with a lightweight AI explanation layer")
+    st.info("Upload a CSV file or tick 'Use sample data' in the sidebar to begin.")
     st.stop()
 
 try:
@@ -60,25 +90,77 @@ signals = derive_signals(metrics)
 focus = determine_focus(metrics, signals)
 ai_text, used_ai = generate_ai_explanation(metrics, signals, focus)
 
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("28-day distance", f"{metrics['total_distance_last_28']} km")
-col2.metric("Run days (28d)", metrics["days_with_run_last_28"])
-col3.metric("Consistency", metrics["consistency_label"].title())
-col4.metric("Volume trend", metrics["volume_trend"].title())
+# Top section: intro + metrics on left, chart on right
+top_left, top_right = st.columns([0.9, 1.1], gap="large")
 
-st.subheader("Weekly training trend")
+with top_left:
+    st.title("RunLab Prototype")
+    st.caption("Structured training insights with a lightweight AI explanation layer")
 
-fig, ax = plt.subplots(figsize=(10, 4))
-ax.plot(weekly["week_start"], weekly["total_distance_km"], marker="o")
-ax.set_xlabel("Week")
-ax.set_ylabel("Distance (km)")
-ax.set_title("Weekly distance")
-ax.grid(True, alpha=0.3)
-st.pyplot(fig)
+    st.markdown("""
+This prototype shows how training data can be turned into:
+- clear weekly metrics
+- structured training signals
+- a primary training focus
+- AI-assisted explanation
 
-left, right = st.columns([1, 1])
+The goal is to support better decision-making, not replace coaching.
+""")
 
-with left:
+    metric_row_1 = st.columns(2)
+    metric_row_1[0].metric("28-day distance", f"{metrics['total_distance_last_28']} km")
+    metric_row_1[1].metric("Run days (28d)", metrics["days_with_run_last_28"])
+
+    metric_row_2 = st.columns(2)
+    metric_row_2[0].metric("Consistency", metrics["consistency_label"].title())
+    metric_row_2[1].metric("Volume trend", metrics["volume_trend"].title())
+
+    st.markdown(
+        f"<div class='small-muted'><strong>Volume pattern:</strong> "
+        f"{metrics['volume_pattern'].replace('_', ' ').title()} — "
+        f"{metrics['volume_pattern_detail']}</div>",
+        unsafe_allow_html=True,
+    )
+
+with top_right:
+    st.markdown("<div style='height: 40px'></div>", unsafe_allow_html=True)
+    st.subheader("Weekly training trend")
+
+    fig, ax = plt.subplots(figsize=(5.6, 2.2), dpi=120)
+
+    ax.plot(
+        weekly["week_start"],
+        weekly["total_distance_km"],
+        marker="o",
+        linewidth=1.8,
+        markersize=4.5,
+    )
+
+    ax.set_title("Weekly distance", fontsize=10, pad=10)  # 👈 increased pad
+    ax.set_xlabel("Week", fontsize=8, labelpad=4)
+    ax.set_ylabel("Distance (km)", fontsize=8, labelpad=4)
+
+    ax.tick_params(axis="x", labelsize=7)
+    ax.tick_params(axis="y", labelsize=7)
+
+    ax.grid(True, alpha=0.2)
+
+    for spine in ["top", "right"]:
+        ax.spines[spine].set_visible(False)
+
+    fig.autofmt_xdate(rotation=0)
+
+    # 👇 THIS is the key line
+    plt.subplots_adjust(top=1.1)
+
+    st.pyplot(fig, use_container_width=False)
+
+st.divider()
+
+# Lower section: 3-panel layout
+panel1, panel2, panel3 = st.columns([1.0, 1.05, 1.15], gap="large")
+
+with panel1:
     st.subheader("Structured signals")
     for signal in signals:
         priority_icon = {
@@ -89,7 +171,8 @@ with left:
         st.markdown(f"**{priority_icon} {signal['title']}**")
         st.write(signal["detail"])
 
-    st.markdown("### 🎯 Primary Focus")
+with panel2:
+    st.subheader("🎯 Primary focus")
     st.success(focus["headline"])
     st.write(focus["detail"])
     st.caption(f"Reason: {focus['reason']}")
@@ -105,15 +188,16 @@ with left:
         for step in focus["prescription"]:
             st.write(f"- {step}")
 
-with right:
+with panel3:
     st.subheader("AI-assisted insight (beta)")
-
     if used_ai:
         st.caption("🟢 OpenAI active")
     else:
         st.caption("🟠 Fallback mode")
 
     st.write(ai_text)
+
+st.divider()
 
 st.subheader("Weekly summary")
 st.dataframe(

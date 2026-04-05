@@ -88,5 +88,20 @@ def derive_signals(metrics: dict) -> list[dict]:
                 "priority": "medium",
             }
         )
-
+    if metrics["volume_pattern"] == "peaked_then_dipped":
+        signals.append(
+            {
+                "title": "Recent dip after peak volume",
+                "detail": metrics["volume_pattern_detail"],
+                "priority": "medium",
+            }
+        )
+    elif metrics["volume_pattern"] == "volatile":
+        signals.append(
+            {
+                "title": "Volatile weekly volume",
+                "detail": metrics["volume_pattern_detail"],
+                "priority": "medium",
+            }
+        )
     return signals
