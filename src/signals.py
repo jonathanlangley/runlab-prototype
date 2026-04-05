@@ -90,17 +90,3 @@ def derive_signals(metrics: dict) -> list[dict]:
         )
 
     return signals
-
-
-def suggested_focus(metrics: dict, signals: list[dict]) -> str:
-    high_priority_titles = [s["title"] for s in signals if s["priority"] == "high"]
-
-    if "Low consistency" in high_priority_titles:
-        return "Primary focus: increase weekly run frequency. Aim to build a consistent routine before adding more volume or intensity."
-    if "No threshold work detected" in high_priority_titles:
-        return "A sensible next step would be to reintroduce one threshold session per week."
-    if "No long run stimulus" in high_priority_titles:
-        return "A sensible next step would be to rebuild regular long run stimulus."
-    if metrics["volume_trend"] == "flat":
-        return "The current pattern looks stable. A small progression in volume or quality may be needed."
-    return "The current pattern looks broadly healthy. Maintain consistency and progress gradually."

@@ -1,12 +1,12 @@
 from __future__ import annotations
-import io
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
 
 from src.data_loader import clean_data
 from src.metrics import weekly_summary, overall_metrics
-from src.signals import derive_signals, suggested_focus
+from src.signals import derive_signals
+from src.focus import determine_focus
 from src.ai_explainer import generate_ai_explanation
 
 st.set_page_config(
@@ -20,9 +20,10 @@ st.caption("Structured training insights with a lightweight AI explanation layer
 st.markdown("""
 This prototype demonstrates how raw training data can be transformed into:
 
-- clear weekly metrics  
-- structured training signals  
-- simple AI-assisted explanations  
+- clear weekly metrics
+- structured training signals
+- a primary training focus
+- simple AI-assisted explanations
 
 The goal is not to replace coaching, but to support better decision-making.
 """)
@@ -31,7 +32,6 @@ st.info("Demo: using sample data. Upload your own CSV to analyse your training."
 with st.sidebar:
     st.header("Data input")
     uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
-
     use_sample = st.checkbox("Use sample data", value=uploaded_file is None)
 
     st.markdown("### Expected columns")
@@ -57,8 +57,8 @@ except Exception as exc:
 weekly = weekly_summary(df)
 metrics = overall_metrics(df, weekly)
 signals = derive_signals(metrics)
-focus = suggested_focus(metrics, signals)
-ai_text = generate_ai_explanation(metrics, signals, focus)
+focus = determine_focus(metrics, signals)
+ai_text, used_ai = generate_ai_explanation(metrics, signals, focus)
 
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("28-day distance", f"{metrics['total_distance_last_28']} km")
@@ -89,12 +89,32 @@ with left:
         st.markdown(f"**{priority_icon} {signal['title']}**")
         st.write(signal["detail"])
 
-    st.subheader("Suggested focus")
-    st.success(focus)
+    st.markdown("### 🎯 Primary Focus")
+    st.success(focus["headline"])
+    st.write(focus["detail"])
+    st.caption(f"Reason: {focus['reason']}")
+
+    if focus.get("supporting_signals"):
+        st.caption("Driven by: " + ", ".join(focus["supporting_signals"]))
+
+    if focus.get("timeframe"):
+        st.caption(f"Suggested timeframe: {focus['timeframe']}")
+
+    if focus.get("prescription"):
+        st.markdown("### 📋 What to do next")
+        for step in focus["prescription"]:
+            st.write(f"- {step}")
 
 with right:
     st.subheader("AI-assisted insight (beta)")
+
+    if used_ai:
+        st.caption("🟢 OpenAI active")
+    else:
+        st.caption("🟠 Fallback mode")
+
     st.write(ai_text)
+
 st.subheader("Weekly summary")
 st.dataframe(
     weekly.assign(
