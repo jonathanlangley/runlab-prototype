@@ -2,6 +2,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 
 from src.data_loader import clean_data
 from src.metrics import weekly_summary, overall_metrics
@@ -123,8 +124,12 @@ The goal is to support better decision-making, not replace coaching.
     )
 
 with top_right:
-    st.markdown("<div style='height: 40px'></div>", unsafe_allow_html=True)
-    st.subheader("Weekly training trend")
+    st.markdown("<div style='height: 10px'></div>", unsafe_allow_html=True)
+    st.markdown("""
+    <h3 style="margin-top: 8px; margin-bottom: 10px;">
+        Weekly training trend
+    </h3>
+    """, unsafe_allow_html=True)
 
     fig, ax = plt.subplots(figsize=(5.6, 2.2), dpi=120)
 
@@ -136,25 +141,27 @@ with top_right:
         markersize=4.5,
     )
 
-    ax.set_title("Weekly distance", fontsize=10, pad=10)  # 👈 increased pad
+    ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%d %b"))
+
+    ax.set_title("Weekly distance", fontsize=10, pad=10)
     ax.set_xlabel("Week", fontsize=8, labelpad=4)
     ax.set_ylabel("Distance (km)", fontsize=8, labelpad=4)
 
-    ax.tick_params(axis="x", labelsize=7)
+    ax.tick_params(axis="x", labelsize=6)
     ax.tick_params(axis="y", labelsize=7)
+
+    plt.setp(ax.get_xticklabels(), rotation=15, ha="right")
 
     ax.grid(True, alpha=0.2)
 
     for spine in ["top", "right"]:
         ax.spines[spine].set_visible(False)
 
-    fig.autofmt_xdate(rotation=0)
-
-    # 👇 THIS is the key line
-    plt.subplots_adjust(top=1.1)
+    plt.tight_layout()
 
     st.pyplot(fig, use_container_width=False)
-
+    
 st.divider()
 
 # Lower section: 3-panel layout
