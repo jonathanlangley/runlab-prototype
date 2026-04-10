@@ -9,56 +9,26 @@ def build_prompt(metrics: dict, signals: list[dict], focus: dict) -> str:
     prescription_lines = "\n".join([f"- {step}" for step in focus.get("prescription", [])]) or "- None provided"
     timeframe = focus.get("timeframe", "Not specified")
 
-    easy_pct = int(metrics.get("easy_run_pct", 0) * 100)
-    quality_pct = int(metrics.get("quality_run_pct", 0) * 100)
-
     return f"""
 You are an experienced endurance running coach analysing structured training data.
 
 Your job is to interpret the data and make a clear, practical coaching call.
 
 Avoid generic advice. Be specific, grounded, and decisive.
-Use the system-identified focus as the default coaching direction, and only soften the language when the data is limited.
 Focus on the highest priority signal when identifying the main limiter.
 
-Important interpretation rules:
-- If progression confidence is low, avoid making strong plateau claims.
-- If the system identifies a static or plateau-style signal, explain that the training may now need a different stimulus rather than simply more of the same.
-- Do not override the system-identified focus unless the evidence clearly conflicts.
-- Do not invent missing training history, race results, or physiological data.
-
 Metrics:
-- Weeks of training data available: {metrics.get('weeks_of_data', 'Unknown')}
-- Progression confidence: {metrics.get('progression_confidence', 'Unknown')}
 - Days with a run in the last 28 days: {metrics['days_with_run_last_28']}
-- Average runs per week: {metrics.get('avg_runs_per_week', 'Unknown')}
 - Consistency: {metrics['consistency_label']}
 - Total distance (28 days): {metrics['total_distance_last_28']} km
 - Average distance per run: {metrics['avg_distance_per_run']} km
 - Longest run: {metrics['longest_run_km']} km
-- Long run ratio to weekly volume: {metrics.get('long_run_ratio_to_weekly_volume', 'Unknown')}
 - Recent weekly average: {metrics['recent_avg_weekly_km']} km
 - Previous weekly average: {metrics['prior_avg_weekly_km']} km
 - Volume trend: {metrics['volume_trend']}
-- Volume pattern: {metrics['volume_pattern']}
-- Volume pattern detail: {metrics['volume_pattern_detail']}
 - Threshold sessions (28 days): {metrics['threshold_sessions_last_28']}
-- Threshold sessions per week: {metrics.get('threshold_sessions_per_week', 'Unknown')}
 - Interval sessions (28 days): {metrics['interval_sessions_last_28']}
-- Interval sessions per week: {metrics.get('interval_sessions_per_week', 'Unknown')}
 - Long runs (28 days): {metrics['long_runs_last_28']}
-- Long runs per week: {metrics.get('long_runs_per_week', 'Unknown')}
-- Easy runs (28 days): {metrics.get('easy_runs_last_28', 'Unknown')}
-- Quality runs (28 days): {metrics.get('quality_runs_last_28', 'Unknown')}
-- Easy run percentage: {easy_pct}%
-- Quality run percentage: {quality_pct}%
-
-Progression trends:
-- Threshold trend: {metrics.get('threshold_trend', 'Unknown')}
-- Interval trend: {metrics.get('interval_trend', 'Unknown')}
-- Long run trend: {metrics.get('long_run_trend', 'Unknown')}
-- Flat progression count: {metrics.get('progression_flat_count', 'Unknown')}
-- Rising progression count: {metrics.get('progression_rising_count', 'Unknown')}
 
 Signals:
 {signal_lines}
@@ -101,18 +71,9 @@ def fallback_explanation(metrics: dict, signals: list[dict], focus: dict) -> str
     top_signals = ", ".join([s["title"] for s in signals[:3]]) if signals else "no major issues detected"
     prescription = " ".join(focus.get("prescription", [])[:2])
 
-    progression_note = ""
-    if metrics.get("progression_confidence") in {"medium", "high"}:
-        progression_note = (
-            f" Progression trends: threshold {metrics.get('threshold_trend', 'unknown')},"
-            f" interval {metrics.get('interval_trend', 'unknown')},"
-            f" long run {metrics.get('long_run_trend', 'unknown')}."
-        )
-
     return (
         f"The main signals are: {top_signals}. "
-        f"Recent training shows {metrics['consistency_label']} consistency and a {metrics['volume_trend']} volume trend."
-        f"{progression_note} "
+        f"Recent training shows {metrics['consistency_label']} consistency and a {metrics['volume_trend']} volume trend. "
         f"The main priority is {focus['headline'].lower()}. {focus['detail']} "
         f"Next step: {prescription}"
     )

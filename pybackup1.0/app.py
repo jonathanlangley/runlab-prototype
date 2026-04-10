@@ -45,13 +45,6 @@ h2, h3 {
     color: #6b7280;
     font-size: 0.92rem;
 }
-
-.panel-note {
-    color: #6b7280;
-    font-size: 0.88rem;
-    margin-top: -0.25rem;
-    margin-bottom: 0.75rem;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -82,7 +75,7 @@ elif use_sample:
 
 if df_raw is None:
     st.title("RunLab Prototype")
-    st.caption("Structured training analysis with an AI-assisted coaching explanation layer")
+    st.caption("Structured training insights with a lightweight AI explanation layer")
     st.info("Upload a CSV file or tick 'Use sample data' in the sidebar to begin.")
     st.stop()
 
@@ -98,28 +91,47 @@ signals = derive_signals(metrics)
 focus = determine_focus(metrics, signals)
 ai_text, used_ai = generate_ai_explanation(metrics, signals, focus)
 
-# Top row: intro + chart
+# Top section: intro + metrics on left, chart on right
 top_left, top_right = st.columns([0.9, 1.1], gap="large")
 
 with top_left:
     st.title("RunLab Prototype")
-    st.caption("Structured training analysis with an AI-assisted coaching explanation layer")
+    st.caption("Structured training insights with a lightweight AI explanation layer")
 
     st.markdown("""
-RunLab analyses recent training, identifies the main limiter, and highlights the most important next focus, with an AI-assisted coaching summary layered on top of the rule-based engine.
+This prototype shows how training data can be turned into:
+- clear weekly metrics
+- structured training signals
+- a primary training focus
+- AI-assisted explanation
 
-The goal is to support better decision-making for self-coached runners, not replace coaching.
+The goal is to support better decision-making, not replace coaching.
 """)
+
+    metric_row_1 = st.columns(2)
+    metric_row_1[0].metric("28-day distance", f"{metrics['total_distance_last_28']} km")
+    metric_row_1[1].metric("Run days (28d)", metrics["days_with_run_last_28"])
+
+    metric_row_2 = st.columns(2)
+    metric_row_2[0].metric("Consistency", metrics["consistency_label"].title())
+    metric_row_2[1].metric("Volume trend", metrics["volume_trend"].title())
+
+    st.markdown(
+        f"<div class='small-muted'><strong>Volume pattern:</strong> "
+        f"{metrics['volume_pattern'].replace('_', ' ').title()} — "
+        f"{metrics['volume_pattern_detail']}</div>",
+        unsafe_allow_html=True,
+    )
 
 with top_right:
     st.markdown("<div style='height: 10px'></div>", unsafe_allow_html=True)
     st.markdown("""
     <h3 style="margin-top: 8px; margin-bottom: 10px;">
-        Recent training trend
+        Weekly training trend
     </h3>
     """, unsafe_allow_html=True)
 
-    fig, ax = plt.subplots(figsize=(6.2, 2.5), dpi=120)
+    fig, ax = plt.subplots(figsize=(5.6, 2.2), dpi=120)
 
     ax.plot(
         weekly["week_start"],
@@ -148,45 +160,16 @@ with top_right:
 
     plt.tight_layout()
 
-    st.pyplot(fig, use_container_width=True)
-
-# Full-width metrics strip
-st.markdown("<div style='height: 8px'></div>", unsafe_allow_html=True)
-
-metric_row_1 = st.columns(6)
-metric_row_1[0].metric("28-day distance", f"{metrics['total_distance_last_28']} km")
-metric_row_1[1].metric("Run days (28d)", metrics["days_with_run_last_28"])
-metric_row_1[2].metric("Consistency", metrics["consistency_label"].title())
-metric_row_1[3].metric("Volume trend", metrics["volume_trend"].title())
-metric_row_1[4].metric("Threshold / week", metrics["threshold_sessions_per_week"])
-metric_row_1[5].metric("Quality ratio", f"{int(metrics['quality_run_pct'] * 100)}%")
-
-metric_row_2 = st.columns(3)
-metric_row_2[0].metric("Progression confidence", metrics["progression_confidence"].title())
-metric_row_2[1].metric("Weeks of data", metrics["weeks_of_data"])
-metric_row_2[2].markdown(
-    f"<div class='small-muted' style='padding-top: 0.55rem;'><strong>Volume pattern:</strong> "
-    f"{metrics['volume_pattern'].replace('_', ' ').title()} — "
-    f"{metrics['volume_pattern_detail']}</div>",
-    unsafe_allow_html=True,
-)
-
+    st.pyplot(fig, use_container_width=False)
+    
 st.divider()
 
 # Lower section: 3-panel layout
 panel1, panel2, panel3 = st.columns([1.0, 1.05, 1.15], gap="large")
 
 with panel1:
-    st.subheader("Key signals")
-    st.markdown(
-        "<div class='panel-note'>Structured signals detected from the recent training pattern.</div>",
-        unsafe_allow_html=True,
-    )
-
-    visible_signals = signals[:4]
-    extra_signals = signals[4:]
-
-    for signal in visible_signals:
+    st.subheader("Structured signals")
+    for signal in signals:
         priority_icon = {
             "high": "🔴",
             "medium": "🟠",
@@ -195,24 +178,8 @@ with panel1:
         st.markdown(f"**{priority_icon} {signal['title']}**")
         st.write(signal["detail"])
 
-    if extra_signals:
-        with st.expander("Show all signals"):
-            for signal in extra_signals:
-                priority_icon = {
-                    "high": "🔴",
-                    "medium": "🟠",
-                    "low": "🟢",
-                }.get(signal["priority"], "⚪")
-                st.markdown(f"**{priority_icon} {signal['title']}**")
-                st.write(signal["detail"])
-
 with panel2:
-    st.subheader("Recommended next focus")
-    st.markdown(
-        "<div class='panel-note'>Primary coaching direction based on the structured rule engine.</div>",
-        unsafe_allow_html=True,
-    )
-
+    st.subheader("🎯 Primary focus")
     st.success(focus["headline"])
     st.write(focus["detail"])
     st.caption(f"Reason: {focus['reason']}")
@@ -229,12 +196,7 @@ with panel2:
             st.write(f"- {step}")
 
 with panel3:
-    st.subheader("AI coaching summary")
-    st.markdown(
-        "<div class='panel-note'>AI-generated explanation built on top of the structured metrics, signals, and focus.</div>",
-        unsafe_allow_html=True,
-    )
-
+    st.subheader("AI-assisted insight (beta)")
     if used_ai:
         st.caption("🟢 OpenAI active")
     else:
@@ -245,38 +207,12 @@ with panel3:
 st.divider()
 
 st.subheader("Weekly summary")
-
-weekly_display = weekly.copy()
-weekly_display = weekly_display.rename(columns={
-    "week_start": "Week",
-    "total_distance_km": "Distance (km)",
-    "total_duration_min": "Duration (min)",
-    "run_count": "Runs",
-    "avg_hr": "Avg HR",
-    "threshold_sessions": "Threshold",
-    "interval_sessions": "Intervals",
-    "long_runs": "Long runs",
-    "easy_runs": "Easy runs",
-})
-
-weekly_display["Distance (km)"] = weekly_display["Distance (km)"].round(1)
-weekly_display["Duration (min)"] = weekly_display["Duration (min)"].round(1)
-weekly_display["Avg HR"] = weekly_display["Avg HR"].round(1)
-
 st.dataframe(
-    weekly_display,
+    weekly.assign(
+        avg_hr=weekly["avg_hr"].round(1)
+    ),
     use_container_width=True,
 )
-
-with st.expander("Debug: metrics / signals / focus"):
-    st.write("Metrics")
-    st.json(metrics)
-
-    st.write("Signals")
-    st.json(signals)
-
-    st.write("Focus")
-    st.json(focus)
 
 with st.expander("View cleaned data"):
     st.dataframe(df, use_container_width=True)
