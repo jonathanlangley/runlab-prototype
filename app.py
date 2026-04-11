@@ -77,8 +77,41 @@ df_raw = None
 
 if uploaded_file is not None:
     df_raw = pd.read_csv(uploaded_file)
+
 elif use_sample:
-    df_raw = pd.read_csv("data/sample_runs.csv")
+    sample_option = st.selectbox(
+        "Select sample scenario",
+        [
+            "Baseline runner (mixed stimulus)",
+            "Near-optimal but plateauing",
+            "Consistent plateau",
+            "Inconsistent training",
+            "High volume, low quality",
+            "Too much intensity",
+        ]
+    )
+
+    file_map = {
+        "Near-optimal but plateauing": "data/near_optimal_but_plateauing.csv",
+        "Baseline runner (mixed stimulus)": "data/sample_runs.csv",
+        "Consistent plateau": "data/consistent_plateau.csv",
+        "Inconsistent training": "data/inconsistent_training.csv",
+        "High volume, low quality": "data/high_volume_no_quality.csv",
+        "Too much intensity": "data/too_much_intensity.csv",
+    }
+
+    descriptions = {
+        "Near-optimal but plateauing": "A strong, balanced pattern that now looks too static and may need a new stimulus.",
+        "Baseline runner (mixed stimulus)": "A typical mixed training pattern with no single dominant issue.",
+        "Consistent plateau": "Steady training with good consistency, but limited progression in key areas.",
+        "Inconsistent training": "An irregular training pattern with gaps and unstable weekly rhythm.",
+        "High volume, low quality": "Strong mileage and consistency, but not enough structured quality work.",
+        "Too much intensity": "A training pattern skewed too heavily toward hard sessions, with limited easy support.",
+    }
+
+    st.caption(descriptions[sample_option])
+
+    df_raw = pd.read_csv(file_map[sample_option])
 
 if df_raw is None:
     st.title("RunLab Prototype")
@@ -158,12 +191,15 @@ metric_row_1[0].metric("28-day distance", f"{metrics['total_distance_last_28']} 
 metric_row_1[1].metric("Run days (28d)", metrics["days_with_run_last_28"])
 metric_row_1[2].metric("Consistency", metrics["consistency_label"].title())
 metric_row_1[3].metric("Volume trend", metrics["volume_trend"].title())
-metric_row_1[4].metric("Threshold / week", metrics["threshold_sessions_per_week"])
-metric_row_1[5].metric("Quality ratio", f"{int(metrics['quality_run_pct'] * 100)}%")
+metric_row_1[4].metric("Threshold / week", metrics.get("threshold_sessions_per_week", "N/A"))
+metric_row_1[5].metric("Quality ratio", f"{int(metrics.get('quality_run_pct', 0) * 100)}%")
 
 metric_row_2 = st.columns(3)
-metric_row_2[0].metric("Progression confidence", metrics["progression_confidence"].title())
-metric_row_2[1].metric("Weeks of data", metrics["weeks_of_data"])
+metric_row_2[0].metric(
+    "Progression confidence",
+    str(metrics.get("progression_confidence", "Unknown")).title()
+)
+metric_row_2[1].metric("Weeks of data", metrics.get("weeks_of_data", "N/A"))
 metric_row_2[2].markdown(
     f"<div class='small-muted' style='padding-top: 0.55rem;'><strong>Volume pattern:</strong> "
     f"{metrics['volume_pattern'].replace('_', ' ').title()} — "
