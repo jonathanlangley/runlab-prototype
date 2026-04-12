@@ -20,9 +20,10 @@ st.markdown("""
 <style>
 .block-container {
     padding-top: 2.2rem;
-    padding-bottom: 1rem;
+    padding-bottom: 1.25rem;
     padding-left: 1.5rem;
     padding-right: 1.5rem;
+    max-width: 1100px;
 }
 
 [data-testid="stMetricValue"] {
@@ -34,7 +35,7 @@ st.markdown("""
 }
 
 h1 {
-    margin-bottom: 0.2rem;
+    margin-bottom: 0.15rem;
 }
 
 h2, h3 {
@@ -46,11 +47,11 @@ h2, h3 {
     font-size: 0.92rem;
 }
 
-.panel-note {
+.section-note {
     color: #6b7280;
-    font-size: 0.88rem;
-    margin-top: -0.25rem;
-    margin-bottom: 0.75rem;
+    font-size: 0.9rem;
+    margin-top: -0.2rem;
+    margin-bottom: 0.9rem;
 }
 
 .scenario-label {
@@ -65,6 +66,46 @@ h2, h3 {
     font-size: 0.9rem;
     margin-top: 0.35rem;
     margin-bottom: 0.75rem;
+}
+
+.report-card {
+    background-color: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 1rem 1rem 0.85rem 1rem;
+    margin-bottom: 1rem;
+}
+
+.report-kicker {
+    color: #6b7280;
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.35rem;
+}
+
+.limiter-box {
+    background-color: #f3f4f6;
+    border-left: 4px solid #111827;
+    padding: 0.85rem 1rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+
+.focus-box {
+    background-color: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    border-radius: 10px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.ai-box {
+    background-color: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 10px;
+    padding: 1rem;
+    margin-bottom: 1rem;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -87,6 +128,15 @@ descriptions = {
     "Too much intensity": "A training pattern skewed too heavily toward hard sessions, with limited easy support.",
 }
 
+sample_options = [
+    "Baseline runner (mixed stimulus)",
+    "Near-optimal but plateauing",
+    "Consistent plateau",
+    "Inconsistent training",
+    "High volume, low quality",
+    "Too much intensity",
+]
+
 with st.sidebar:
     st.header("Data input")
     uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
@@ -105,16 +155,6 @@ date, distance_km, duration_min, avg_hr, activity_type, workout_type
 </div>
 """, unsafe_allow_html=True)
 
-sample_options = [
-    "Baseline runner (mixed stimulus)",
-    "Near-optimal but plateauing",
-    "Consistent plateau",
-    "Inconsistent training",
-    "High volume, low quality",
-    "Too much intensity",
-]
-
-# Determine chosen sample before running the pipeline
 sample_option = st.session_state.get("sample_option", "Baseline runner (mixed stimulus)")
 if sample_option not in sample_options:
     sample_option = "Baseline runner (mixed stimulus)"
@@ -144,45 +184,199 @@ signals = derive_signals(metrics)
 focus = determine_focus(metrics, signals)
 ai_text, used_ai = generate_ai_explanation(metrics, signals, focus)
 
-# Top row: intro + chart
-top_left, top_right = st.columns([0.9, 1.1], gap="large")
+# Header
+st.title("RunLab Prototype")
+st.caption("Structured training analysis with an AI-assisted coaching explanation layer")
 
-with top_left:
-    st.title("RunLab Prototype")
-    st.caption("Structured training analysis with an AI-assisted coaching explanation layer")
-
-    st.markdown("""
+st.markdown("""
 RunLab analyses recent training, identifies the main limiter, and highlights the most important next focus, with an AI-assisted coaching summary layered on top of the rule-based engine.
-
-The goal is to support better decision-making for self-coached runners, not replace coaching.
 """)
 
-with top_right:
-    if use_sample and uploaded_file is None:
-        st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
-        st.markdown("<div class='scenario-label'>Explore training scenarios</div>", unsafe_allow_html=True)
+# Scenario selector for sample mode
+if use_sample and uploaded_file is None:
+    st.markdown("<div class='report-card'>", unsafe_allow_html=True)
+    st.markdown("<div class='scenario-label'>Explore training scenarios</div>", unsafe_allow_html=True)
 
-        selected = st.selectbox(
-            "Choose a training scenario",
-            sample_options,
-            index=sample_options.index(sample_option),
-            label_visibility="collapsed",
-            key="sample_option",
-        )
+    selected = st.selectbox(
+        "Choose a training scenario",
+        sample_options,
+        index=sample_options.index(sample_option),
+        label_visibility="collapsed",
+        key="sample_option",
+    )
 
-        st.markdown(
-            f"<div class='scenario-help'>{descriptions[selected]}</div>",
-            unsafe_allow_html=True,
-        )
+    st.markdown(
+        f"<div class='scenario-help'>{descriptions[selected]}</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
 
-        if selected != sample_option:
-            st.rerun()
+    if selected != sample_option:
+        st.rerun()
 
-        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+# Top supporting metrics
+metric_row = st.columns(4)
+metric_row[0].metric("28-day distance", f"{metrics['total_distance_last_28']} km")
+metric_row[1].metric("Run days (28d)", metrics["days_with_run_last_28"])
+metric_row[2].metric("Consistency", metrics["consistency_label"].title())
+metric_row[3].metric("Volume trend", metrics["volume_trend"].title())
 
-    st.subheader("Recent training trend")
+st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
-    fig, ax = plt.subplots(figsize=(6.2, 2.5), dpi=120)
+# Report headline / primary limiter
+st.markdown('<div class="report-kicker">Primary limiter</div>', unsafe_allow_html=True)
+st.markdown(
+    f"""
+<div class="limiter-box">
+    <div style="font-size: 1.35rem; font-weight: 700; color: #111827;">{focus["headline"]}</div>
+    <div style="margin-top: 0.35rem; color: #374151;">{focus["detail"]}</div>
+</div>
+""",
+    unsafe_allow_html=True,
+)
+
+st.caption(
+    f"Based on the last {metrics.get('weeks_of_data', 'N/A')} weeks of training. "
+    f"Progression confidence: {str(metrics.get('progression_confidence', 'Unknown')).title()}."
+)
+
+st.divider()
+
+# Progress since last report
+previous_metrics = st.session_state.get("previous_metrics")
+
+st.markdown("## Progress since last report")
+st.markdown(
+    '<div class="section-note">A simple comparison against the previous analysis in this session.</div>',
+    unsafe_allow_html=True,
+)
+
+if previous_metrics is None:
+    st.info("This is your first report. Progress tracking will appear after your next analysis.")
+else:
+    progress_cols = st.columns(3)
+
+    dist_now = metrics.get("total_distance_last_28", 0)
+    dist_prev = previous_metrics.get("total_distance_last_28", 0)
+    dist_delta = dist_now - dist_prev
+
+    progress_cols[0].metric(
+        "28-day distance",
+        f"{dist_now} km",
+        f"{dist_delta:+.1f} km"
+    )
+
+    qual_now = int(metrics.get("quality_run_pct", 0) * 100)
+    qual_prev = int(previous_metrics.get("quality_run_pct", 0) * 100)
+    qual_delta = qual_now - qual_prev
+
+    progress_cols[1].metric(
+        "Quality ratio",
+        f"{qual_now}%",
+        f"{qual_delta:+d}%"
+    )
+
+    cons_now = metrics.get("consistency_label", "Unknown").title()
+    cons_prev = previous_metrics.get("consistency_label", "Unknown").title()
+
+    progress_cols[2].metric(
+        "Consistency",
+        cons_now,
+        f"Prev: {cons_prev}"
+    )
+
+st.divider()
+
+# Diagnosis
+st.markdown("## Diagnosis")
+st.markdown(
+    '<div class="section-note">The strongest signals detected from the recent training pattern.</div>',
+    unsafe_allow_html=True,
+)
+
+top_signals = signals[:3] if signals else []
+
+if top_signals:
+    for signal in top_signals:
+        priority_icon = {
+            "high": "🔴",
+            "medium": "🟠",
+            "low": "🟢",
+        }.get(signal["priority"], "⚪")
+        st.markdown(f"**{priority_icon} {signal['title']}**")
+        st.write(signal["detail"])
+else:
+    st.write("No major limiting signals detected.")
+
+st.divider()
+
+# Recommended next focus
+st.markdown("## What to do next")
+st.markdown(
+    f"""
+<div class="focus-box">
+    <div style="font-size: 1.1rem; font-weight: 700; color: #065f46; margin-bottom: 0.5rem;">
+        Recommended next focus
+    </div>
+    <div style="color: #111827; margin-bottom: 0.5rem;">{focus["headline"]}</div>
+    <div style="color: #374151; margin-bottom: 0.85rem;">{focus["detail"]}</div>
+    <div style="font-size: 0.9rem; color: #374151;"><strong>Suggested timeframe:</strong> {focus.get("timeframe", "N/A")}</div>
+</div>
+""",
+    unsafe_allow_html=True,
+)
+
+if focus.get("prescription"):
+    for step in focus["prescription"]:
+        st.markdown(f"- {step}")
+
+if focus.get("supporting_signals"):
+    st.caption("Driven by: " + ", ".join(focus["supporting_signals"]))
+
+st.divider()
+
+# AI coaching explanation
+st.markdown("## Why this recommendation")
+st.markdown(
+    f"""
+<div class="ai-box">
+    <div style="font-size: 1.05rem; font-weight: 700; color: #1d4ed8; margin-bottom: 0.5rem;">
+        AI coaching summary
+    </div>
+    <div style="font-size: 0.88rem; color: #6b7280; margin-bottom: 0.75rem;">
+        {"OpenAI active" if used_ai else "Fallback mode"}
+    </div>
+    <div style="color: #111827;">{ai_text}</div>
+</div>
+""",
+    unsafe_allow_html=True,
+)
+
+st.divider()
+
+# Supporting metrics
+st.markdown("## Supporting metrics")
+metric_row_2 = st.columns(4)
+metric_row_2[0].metric("Threshold / week", metrics.get("threshold_sessions_per_week", "N/A"))
+metric_row_2[1].metric("Quality ratio", f"{int(metrics.get('quality_run_pct', 0) * 100)}%")
+metric_row_2[2].metric("Weeks of data", metrics.get("weeks_of_data", "N/A"))
+metric_row_2[3].metric(
+    "Progression confidence",
+    str(metrics.get("progression_confidence", "Unknown")).title()
+)
+
+st.markdown(
+    f"<div class='small-muted'><strong>Volume pattern:</strong> "
+    f"{metrics['volume_pattern'].replace('_', ' ').title()} — "
+    f"{metrics['volume_pattern_detail']}</div>",
+    unsafe_allow_html=True,
+)
+
+st.divider()
+
+# Supporting data in expanders
+with st.expander("View training chart", expanded=False):
+    fig, ax = plt.subplots(figsize=(8, 3.2), dpi=120)
 
     ax.plot(
         weekly["week_start"],
@@ -199,8 +393,8 @@ with top_right:
     ax.set_xlabel("Week", fontsize=8, labelpad=4)
     ax.set_ylabel("Distance (km)", fontsize=8, labelpad=4)
 
-    ax.tick_params(axis="x", labelsize=6)
-    ax.tick_params(axis="y", labelsize=7)
+    ax.tick_params(axis="x", labelsize=7)
+    ax.tick_params(axis="y", labelsize=8)
 
     plt.setp(ax.get_xticklabels(), rotation=15, ha="right")
 
@@ -210,131 +404,32 @@ with top_right:
         ax.spines[spine].set_visible(False)
 
     plt.tight_layout()
-
     st.pyplot(fig, use_container_width=True)
 
-# Full-width metrics strip
-st.markdown("<div style='height: 8px'></div>", unsafe_allow_html=True)
+with st.expander("View weekly summary", expanded=False):
+    weekly_display = weekly.copy()
+    weekly_display = weekly_display.rename(columns={
+        "week_start": "Week",
+        "total_distance_km": "Distance (km)",
+        "total_duration_min": "Duration (min)",
+        "run_count": "Runs",
+        "avg_hr": "Avg HR",
+        "threshold_sessions": "Threshold",
+        "interval_sessions": "Intervals",
+        "long_runs": "Long runs",
+        "easy_runs": "Easy runs",
+    })
 
-metric_row_1 = st.columns(6)
-metric_row_1[0].metric("28-day distance", f"{metrics['total_distance_last_28']} km")
-metric_row_1[1].metric("Run days (28d)", metrics["days_with_run_last_28"])
-metric_row_1[2].metric("Consistency", metrics["consistency_label"].title())
-metric_row_1[3].metric("Volume trend", metrics["volume_trend"].title())
-metric_row_1[4].metric("Threshold / week", metrics.get("threshold_sessions_per_week", "N/A"))
-metric_row_1[5].metric("Quality ratio", f"{int(metrics.get('quality_run_pct', 0) * 100)}%")
+    weekly_display["Distance (km)"] = weekly_display["Distance (km)"].round(1)
+    weekly_display["Duration (min)"] = weekly_display["Duration (min)"].round(1)
+    weekly_display["Avg HR"] = weekly_display["Avg HR"].round(1)
 
-metric_row_2 = st.columns(3)
-metric_row_2[0].metric(
-    "Progression confidence",
-    str(metrics.get("progression_confidence", "Unknown")).title()
-)
-metric_row_2[1].metric("Weeks of data", metrics.get("weeks_of_data", "N/A"))
-metric_row_2[2].markdown(
-    f"<div class='small-muted' style='padding-top: 0.55rem;'><strong>Volume pattern:</strong> "
-    f"{metrics['volume_pattern'].replace('_', ' ').title()} — "
-    f"{metrics['volume_pattern_detail']}</div>",
-    unsafe_allow_html=True,
-)
+    st.dataframe(weekly_display, use_container_width=True)
 
-st.divider()
+with st.expander("View cleaned data", expanded=False):
+    st.dataframe(df, use_container_width=True)
 
-# Lower section: 3-panel layout
-panel1, panel2, panel3 = st.columns([1.0, 1.05, 1.15], gap="large")
-
-with panel1:
-    st.subheader("Key signals")
-    st.markdown(
-        "<div class='panel-note'>Structured signals detected from the recent training pattern.</div>",
-        unsafe_allow_html=True,
-    )
-
-    visible_signals = signals[:4]
-    extra_signals = signals[4:]
-
-    for signal in visible_signals:
-        priority_icon = {
-            "high": "🔴",
-            "medium": "🟠",
-            "low": "🟢",
-        }.get(signal["priority"], "⚪")
-        st.markdown(f"**{priority_icon} {signal['title']}**")
-        st.write(signal["detail"])
-
-    if extra_signals:
-        with st.expander("Show all signals"):
-            for signal in extra_signals:
-                priority_icon = {
-                    "high": "🔴",
-                    "medium": "🟠",
-                    "low": "🟢",
-                }.get(signal["priority"], "⚪")
-                st.markdown(f"**{priority_icon} {signal['title']}**")
-                st.write(signal["detail"])
-
-with panel2:
-    st.subheader("Recommended next focus")
-    st.markdown(
-        "<div class='panel-note'>Primary coaching direction based on the structured rule engine.</div>",
-        unsafe_allow_html=True,
-    )
-
-    st.success(focus["headline"])
-    st.write(focus["detail"])
-    st.caption(f"Reason: {focus['reason']}")
-
-    if focus.get("supporting_signals"):
-        st.caption("Driven by: " + ", ".join(focus["supporting_signals"]))
-
-    if focus.get("timeframe"):
-        st.caption(f"Suggested timeframe: {focus['timeframe']}")
-
-    if focus.get("prescription"):
-        st.markdown("### 📋 What to do next")
-        for step in focus["prescription"]:
-            st.write(f"- {step}")
-
-with panel3:
-    st.subheader("AI coaching summary")
-    st.markdown(
-        "<div class='panel-note'>AI-generated explanation built on top of the structured metrics, signals, and focus.</div>",
-        unsafe_allow_html=True,
-    )
-
-    if used_ai:
-        st.caption("🟢 OpenAI active")
-    else:
-        st.caption("🟠 Fallback mode")
-
-    st.write(ai_text)
-
-st.divider()
-
-st.subheader("Weekly summary")
-
-weekly_display = weekly.copy()
-weekly_display = weekly_display.rename(columns={
-    "week_start": "Week",
-    "total_distance_km": "Distance (km)",
-    "total_duration_min": "Duration (min)",
-    "run_count": "Runs",
-    "avg_hr": "Avg HR",
-    "threshold_sessions": "Threshold",
-    "interval_sessions": "Intervals",
-    "long_runs": "Long runs",
-    "easy_runs": "Easy runs",
-})
-
-weekly_display["Distance (km)"] = weekly_display["Distance (km)"].round(1)
-weekly_display["Duration (min)"] = weekly_display["Duration (min)"].round(1)
-weekly_display["Avg HR"] = weekly_display["Avg HR"].round(1)
-
-st.dataframe(
-    weekly_display,
-    use_container_width=True,
-)
-
-with st.expander("Debug: metrics / signals / focus"):
+with st.expander("Debug: metrics / signals / focus", expanded=False):
     st.write("Metrics")
     st.json(metrics)
 
@@ -344,10 +439,7 @@ with st.expander("Debug: metrics / signals / focus"):
     st.write("Focus")
     st.json(focus)
 
-with st.expander("View cleaned data"):
-    st.dataframe(df, use_container_width=True)
-
-with st.expander("Download outputs"):
+with st.expander("Download outputs", expanded=False):
     cleaned_csv = df.to_csv(index=False).encode("utf-8")
     weekly_csv = weekly.to_csv(index=False).encode("utf-8")
 
@@ -364,3 +456,5 @@ with st.expander("Download outputs"):
         file_name="weekly_summary.csv",
         mime="text/csv",
     )
+    
+    st.session_state["previous_metrics"] = metrics
