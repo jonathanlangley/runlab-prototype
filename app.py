@@ -137,10 +137,13 @@ sample_options = [
     "Too much intensity",
 ]
 
+APP_MODES = ["Try demo scenarios", "Upload your own data"]
+VALID_BETA_CODES = {"RUNLAB-BETA1"}  # replace with your real code(s)
+BETA_SIGNUP_URL = "https://runlab.ai/#beta"  # replace with your real Formspree/landing-page beta link
+
 with st.sidebar:
     st.header("Data input")
-    uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
-    use_sample = st.checkbox("Use sample data", value=uploaded_file is None)
+    uploaded_file = st.file_uploader("Upload running data (CSV)", type=["csv"])
 
     st.markdown("""
 <div style="
@@ -159,30 +162,20 @@ sample_option = st.session_state.get("sample_option", "Baseline runner (mixed st
 if sample_option not in sample_options:
     sample_option = "Baseline runner (mixed stimulus)"
 
+app_mode = st.session_state.get("app_mode", "Try demo scenarios")
+if app_mode not in APP_MODES:
+    app_mode = "Try demo scenarios"
+
+invite_code = st.session_state.get("invite_code", "").strip()
+beta_access_granted = invite_code in VALID_BETA_CODES
+
 df_raw = None
 
-if uploaded_file is not None:
-    df_raw = pd.read_csv(uploaded_file)
-elif use_sample:
+if app_mode == "Upload your own data":
+    if uploaded_file is not None and beta_access_granted:
+        df_raw = pd.read_csv(uploaded_file)
+else:
     df_raw = pd.read_csv(file_map[sample_option])
-
-if df_raw is None:
-    st.title("RunLab Prototype")
-    st.caption("Structured training analysis with an AI-assisted coaching explanation layer")
-    st.info("Upload a CSV file or tick 'Use sample data' in the sidebar to begin.")
-    st.stop()
-
-try:
-    df = clean_data(df_raw)
-except Exception as exc:
-    st.error(f"Data error: {exc}")
-    st.stop()
-
-weekly = weekly_summary(df)
-metrics = overall_metrics(df, weekly)
-signals = derive_signals(metrics)
-focus = determine_focus(metrics, signals)
-ai_text, used_ai = generate_ai_explanation(metrics, signals, focus)
 
 # Header
 st.title("RunLab Prototype")
@@ -192,10 +185,29 @@ st.markdown("""
 RunLab analyses recent training, identifies the main limiter, and highlights the most important next focus, with an AI-assisted coaching summary layered on top of the rule-based engine.
 """)
 
-# Scenario selector for sample mode
-if use_sample and uploaded_file is None:
-    st.markdown("<div class='report-card'>", unsafe_allow_html=True)
-    st.markdown("<div class='scenario-label'>Explore training scenarios</div>", unsafe_allow_html=True)
+st.caption("RunLab can be explored in demo mode, or used with your own running data in private beta.")
+
+# Mode selector card
+st.markdown("<div class='report-card'>", unsafe_allow_html=True)
+st.markdown(
+    "<div class='scenario-label'>How would you like to use RunLab?</div>",
+    unsafe_allow_html=True,
+)
+
+selected_mode = st.radio(
+    "How would you like to use RunLab?",
+    APP_MODES,
+    index=APP_MODES.index(app_mode),
+    horizontal=True,
+    label_visibility="collapsed",
+    key="app_mode",
+)
+
+if selected_mode == "Try demo scenarios":
+    st.markdown(
+        "<div class='scenario-help'>These demo scenarios are for illustration only. They show how the analysis behaves across different types of running data.</div>",
+        unsafe_allow_html=True,
+    )
 
     selected = st.selectbox(
         "Choose a training scenario",
@@ -209,10 +221,60 @@ if use_sample and uploaded_file is None:
         f"<div class='scenario-help'>{descriptions[selected]}</div>",
         unsafe_allow_html=True,
     )
+
     st.markdown("</div>", unsafe_allow_html=True)
 
     if selected != sample_option:
         st.rerun()
+
+else:
+    st.markdown(
+        "<div class='scenario-help'>Upload your own running data to generate a personalised report. This feature is currently limited to beta users with an invite code.</div>",
+        unsafe_allow_html=True,
+    )
+
+    entered_code = st.text_input(
+        "Enter beta invite code",
+        value=st.session_state.get("invite_code", ""),
+        key="invite_code_input",
+    ).strip()
+
+    if entered_code != st.session_state.get("invite_code", ""):
+        st.session_state["invite_code"] = entered_code
+        st.rerun()
+
+    beta_access_granted = entered_code in VALID_BETA_CODES
+
+    if beta_access_granted:
+        st.success("Beta access granted. You can now upload your own running data in the sidebar.")
+    else:
+        st.warning("Beta access is required to upload your own data.")
+        st.markdown(f"[Join the beta here]({BETA_SIGNUP_URL})")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+if df_raw is None and app_mode == "Try demo scenarios":
+    st.info("Choose a demo scenario to begin.")
+    st.stop()
+
+if df_raw is None and app_mode == "Upload your own data":
+    if beta_access_granted:
+        st.info("Upload your running data CSV in the sidebar to begin.")
+    else:
+        st.info("Enter a valid beta invite code to unlock uploads, or use demo mode to explore RunLab.")
+    st.stop()
+
+try:
+    df = clean_data(df_raw)
+except Exception as exc:
+    st.error(f"Data error: {exc}")
+    st.stop()
+
+weekly = weekly_summary(df)
+metrics = overall_metrics(df, weekly)
+signals = derive_signals(metrics)
+focus = determine_focus(metrics, signals)
+ai_text, used_ai = generate_ai_explanation(metrics, signals, focus)
 
 # Top supporting metrics
 metric_row = st.columns(4)
@@ -239,51 +301,6 @@ st.caption(
     f"Based on the last {metrics.get('weeks_of_data', 'N/A')} weeks of training. "
     f"Progression confidence: {str(metrics.get('progression_confidence', 'Unknown')).title()}."
 )
-
-st.divider()
-
-# Progress since last report
-previous_metrics = st.session_state.get("previous_metrics")
-
-st.markdown("## Progress since last report")
-st.markdown(
-    '<div class="section-note">A simple comparison against the previous analysis in this session.</div>',
-    unsafe_allow_html=True,
-)
-
-if previous_metrics is None:
-    st.info("This is your first report. Progress tracking will appear after your next analysis.")
-else:
-    progress_cols = st.columns(3)
-
-    dist_now = metrics.get("total_distance_last_28", 0)
-    dist_prev = previous_metrics.get("total_distance_last_28", 0)
-    dist_delta = dist_now - dist_prev
-
-    progress_cols[0].metric(
-        "28-day distance",
-        f"{dist_now} km",
-        f"{dist_delta:+.1f} km"
-    )
-
-    qual_now = int(metrics.get("quality_run_pct", 0) * 100)
-    qual_prev = int(previous_metrics.get("quality_run_pct", 0) * 100)
-    qual_delta = qual_now - qual_prev
-
-    progress_cols[1].metric(
-        "Quality ratio",
-        f"{qual_now}%",
-        f"{qual_delta:+d}%"
-    )
-
-    cons_now = metrics.get("consistency_label", "Unknown").title()
-    cons_prev = previous_metrics.get("consistency_label", "Unknown").title()
-
-    progress_cols[2].metric(
-        "Consistency",
-        cons_now,
-        f"Prev: {cons_prev}"
-    )
 
 st.divider()
 
@@ -456,5 +473,3 @@ with st.expander("Download outputs", expanded=False):
         file_name="weekly_summary.csv",
         mime="text/csv",
     )
-    
-    st.session_state["previous_metrics"] = metrics
