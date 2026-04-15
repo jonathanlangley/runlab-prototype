@@ -10,6 +10,13 @@ from src.signals import derive_signals
 from src.focus import determine_focus
 from src.ai_explainer import generate_ai_explanation
 
+try:
+    from src.runlab_classifier_v1 import classify_dataframe
+    CLASSIFIER_AVAILABLE = True
+except Exception:
+    classify_dataframe = None
+    CLASSIFIER_AVAILABLE = False
+
 st.set_page_config(
     page_title="RunLab Prototype",
     page_icon="🏃",
@@ -154,9 +161,24 @@ with st.sidebar:
     font-size: 0.9rem;
     white-space: normal;
 ">
-date, distance_km, duration_min, avg_hr, activity_type, workout_type
+date, distance_km, duration_min, avg_hr, activity_type, workout_type, title, description
 </div>
 """, unsafe_allow_html=True)
+
+    st.markdown("### Auto-classification (beta)")
+    enable_auto_classification = st.checkbox(
+        "Enable auto-classification for uploads",
+        value=False,
+        help="Adds calculated session classifications for uploaded CSVs using title, pace, and current 5K time.",
+    )
+    current_5k_time = st.text_input(
+        "Current 5K time",
+        value="17:40",
+        help="Used as the pace anchor for auto-classification, for example 17:40.",
+    ).strip()
+
+    if enable_auto_classification and not CLASSIFIER_AVAILABLE:
+        st.warning("Classifier module not available. Save runlab_classifier_v1.py inside src to use this feature.")
 
 sample_option = st.session_state.get("sample_option", "Baseline runner (mixed stimulus)")
 if sample_option not in sample_options:
@@ -169,11 +191,21 @@ if app_mode not in APP_MODES:
 invite_code = st.session_state.get("invite_code", "").strip()
 beta_access_granted = invite_code in VALID_BETA_CODES
 
+auto_classified_df = None
+auto_classification_error = None
 df_raw = None
 
 if app_mode == "Upload your own data":
     if uploaded_file is not None and beta_access_granted:
         df_raw = pd.read_csv(uploaded_file)
+
+        if enable_auto_classification and CLASSIFIER_AVAILABLE:
+            try:
+                user_profile = {"current_5k_time": current_5k_time}
+                auto_classified_df = classify_dataframe(df_raw.copy(), user_profile)
+                df_raw = auto_classified_df.copy()
+            except Exception as exc:
+                auto_classification_error = str(exc)
 else:
     df_raw = pd.read_csv(file_map[sample_option])
 
@@ -269,6 +301,12 @@ try:
 except Exception as exc:
     st.error(f"Data error: {exc}")
     st.stop()
+
+if app_mode == "Upload your own data" and enable_auto_classification:
+    if auto_classification_error:
+        st.warning(f"Auto-classification was skipped: {auto_classification_error}")
+    elif auto_classified_df is not None:
+        st.success("Auto-classification applied to uploaded data.")
 
 weekly = weekly_summary(df)
 metrics = overall_metrics(df, weekly)
@@ -442,6 +480,10 @@ with st.expander("View weekly summary", expanded=False):
     weekly_display["Avg HR"] = weekly_display["Avg HR"].round(1)
 
     st.dataframe(weekly_display, use_container_width=True)
+
+if app_mode == "Upload your own data" and auto_classified_df is not None:
+    with st.expander("View auto-classified upload", expanded=False):
+        st.dataframe(auto_classified_df, use_container_width=True)
 
 with st.expander("View cleaned data", expanded=False):
     st.dataframe(df, use_container_width=True)
