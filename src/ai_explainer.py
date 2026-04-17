@@ -1,121 +1,230 @@
 from __future__ import annotations
+
 from openai import OpenAI
 from src.config import OPENAI_API_KEY, OPENAI_MODEL
 
 
+def format_frequency(count: int) -> str:
+    """Convert session counts into coach-friendly wording."""
+    if count == 0:
+        return "none"
+    if count == 1:
+        return "1 session in the last 4 weeks (very limited)"
+    if count == 2:
+        return "2 sessions in the last 4 weeks (around once every 2 weeks)"
+    if count == 3:
+        return "3 sessions in the last 4 weeks (slightly inconsistent)"
+    if count <= 6:
+        return f"{count} sessions in the last 4 weeks (reasonably consistent)"
+    return f"{count} sessions in the last 4 weeks (frequent)"
+
+
+def build_structured_summary(metrics: dict) -> dict:
+    threshold_sessions = int(metrics.get("threshold_sessions_last_28", 0) or 0)
+    interval_sessions = int(metrics.get("interval_sessions_last_28", 0) or 0)
+    long_runs = int(metrics.get("long_runs_last_28", 0) or 0)
+    easy_runs = int(metrics.get("easy_runs_last_28", 0) or 0)
+    days_with_run_last_28 = int(metrics.get("days_with_run_last_28", 0) or 0)
+
+    return {
+        "weeks_of_data": metrics.get("weeks_of_data", "Unknown"),
+        "progression_confidence": metrics.get("progression_confidence", "Unknown"),
+        "days_with_run_last_28": days_with_run_last_28,
+        "run_days_per_week": round(days_with_run_last_28 / 4.0, 2),
+        "consistency_label": metrics.get("consistency_label", "Unknown"),
+        "total_distance_last_28": metrics.get("total_distance_last_28", 0),
+        "avg_distance_per_run": metrics.get("avg_distance_per_run", 0),
+        "longest_run_km": metrics.get("longest_run_km", 0),
+        "long_run_ratio_to_weekly_volume": metrics.get("long_run_ratio_to_weekly_volume", "Unknown"),
+        "recent_avg_weekly_km": metrics.get("recent_avg_weekly_km", 0),
+        "prior_avg_weekly_km": metrics.get("prior_avg_weekly_km", 0),
+        "volume_trend": metrics.get("volume_trend", "Unknown"),
+        "volume_pattern": metrics.get("volume_pattern", "Unknown"),
+        "volume_pattern_detail": metrics.get("volume_pattern_detail", "Unknown"),
+        "threshold_sessions_last_28": threshold_sessions,
+        "threshold_sessions_per_week": metrics.get("threshold_sessions_per_week", 0),
+        "interval_sessions_last_28": interval_sessions,
+        "interval_sessions_per_week": metrics.get("interval_sessions_per_week", 0),
+        "long_runs_last_28": long_runs,
+        "long_runs_per_week": metrics.get("long_runs_per_week", 0),
+        "easy_runs_last_28": easy_runs,
+        "quality_runs_last_28": metrics.get("quality_runs_last_28", 0),
+        "easy_run_pct": int(metrics.get("easy_run_pct", 0) * 100),
+        "quality_run_pct": int(metrics.get("quality_run_pct", 0) * 100),
+        "threshold_trend": metrics.get("threshold_trend", "Unknown"),
+        "interval_trend": metrics.get("interval_trend", "Unknown"),
+        "long_run_trend": metrics.get("long_run_trend", "Unknown"),
+        "progression_flat_count": metrics.get("progression_flat_count", "Unknown"),
+        "progression_rising_count": metrics.get("progression_rising_count", "Unknown"),
+        "vo2_present": interval_sessions > 0,
+        "threshold_present": threshold_sessions > 0,
+        "long_run_present": long_runs > 0,
+        "threshold_freq_text": format_frequency(threshold_sessions),
+        "interval_freq_text": format_frequency(interval_sessions),
+        "long_run_freq_text": format_frequency(long_runs),
+    }
+
+
 def build_prompt(metrics: dict, signals: list[dict], focus: dict) -> str:
-    signal_lines = "\n".join([f"- {s['title']}: {s['detail']}" for s in signals])
-    supporting_signals = ", ".join(focus["supporting_signals"]) if focus["supporting_signals"] else "None"
-    prescription_lines = "\n".join([f"- {step}" for step in focus.get("prescription", [])]) or "- None provided"
+    summary = build_structured_summary(metrics)
+
+    signal_lines = "\n".join(
+        [f"- {s['title']} ({s['priority']}): {s['detail']}" for s in signals]
+    ) or "- None"
+
+    supporting_signals = ", ".join(focus.get("supporting_signals", [])) or "None"
+    prescription_lines = "\n".join(
+        [f"- {step}" for step in focus.get("prescription", [])]
+    ) or "- None provided"
+
     timeframe = focus.get("timeframe", "Not specified")
 
-    easy_pct = int(metrics.get("easy_run_pct", 0) * 100)
-    quality_pct = int(metrics.get("quality_run_pct", 0) * 100)
-
     return f"""
-You are an experienced endurance running coach analysing structured training data.
+You are an experienced endurance running coach explaining a structured training diagnosis.
 
-Your job is to interpret the data and make a clear, practical coaching call.
+Your role is not to re-analyse raw data from scratch.
+Your role is to explain the system output clearly, conservatively, and accurately.
 
-Avoid generic advice. Be specific, grounded, and decisive.
-Use the system-identified focus as the default coaching direction, and only soften the language when the data is limited.
-Focus on the highest priority signal when identifying the main limiter.
+You must only use the facts provided below.
+Do not guess.
+Do not invent race results, physiology, heart-rate trends, or missing training history.
+Do not say a session type is absent if its count is above zero.
+If a session type is present but not frequent enough, describe it as limited, light, or inconsistent.
 
-Important interpretation rules:
-- If progression confidence is low, avoid making strong plateau claims.
-- If the system identifies a static or plateau-style signal, explain that the training may now need a different stimulus rather than simply more of the same.
-- Do not override the system-identified focus unless the evidence clearly conflicts.
-- Do not invent missing training history, race results, or physiological data.
+FACTS
 
-Metrics:
-- Weeks of training data available: {metrics.get('weeks_of_data', 'Unknown')}
-- Progression confidence: {metrics.get('progression_confidence', 'Unknown')}
-- Days with a run in the last 28 days: {metrics['days_with_run_last_28']}
-- Average runs per week: {metrics.get('avg_runs_per_week', 'Unknown')}
-- Consistency: {metrics['consistency_label']}
-- Total distance (28 days): {metrics['total_distance_last_28']} km
-- Average distance per run: {metrics['avg_distance_per_run']} km
-- Longest run: {metrics['longest_run_km']} km
-- Long run ratio to weekly volume: {metrics.get('long_run_ratio_to_weekly_volume', 'Unknown')}
-- Recent weekly average: {metrics['recent_avg_weekly_km']} km
-- Previous weekly average: {metrics['prior_avg_weekly_km']} km
-- Volume trend: {metrics['volume_trend']}
-- Volume pattern: {metrics['volume_pattern']}
-- Volume pattern detail: {metrics['volume_pattern_detail']}
-- Threshold sessions (28 days): {metrics['threshold_sessions_last_28']}
-- Threshold sessions per week: {metrics.get('threshold_sessions_per_week', 'Unknown')}
-- Interval sessions (28 days): {metrics['interval_sessions_last_28']}
-- Interval sessions per week: {metrics.get('interval_sessions_per_week', 'Unknown')}
-- Long runs (28 days): {metrics['long_runs_last_28']}
-- Long runs per week: {metrics.get('long_runs_per_week', 'Unknown')}
-- Easy runs (28 days): {metrics.get('easy_runs_last_28', 'Unknown')}
-- Quality runs (28 days): {metrics.get('quality_runs_last_28', 'Unknown')}
-- Easy run percentage: {easy_pct}%
-- Quality run percentage: {quality_pct}%
+Training summary:
+- Weeks of data: {summary["weeks_of_data"]}
+- Progression confidence: {summary["progression_confidence"]}
+- Run days in the last 28 days: {summary["days_with_run_last_28"]}
+- Average run days per week: {summary["run_days_per_week"]}
+- Consistency: {summary["consistency_label"]}
+- Total distance in last 28 days: {summary["total_distance_last_28"]} km
+- Average distance per run: {summary["avg_distance_per_run"]} km
+- Longest run: {summary["longest_run_km"]} km
+- Long run ratio to weekly volume: {summary["long_run_ratio_to_weekly_volume"]}
+- Recent weekly average: {summary["recent_avg_weekly_km"]} km
+- Previous weekly average: {summary["prior_avg_weekly_km"]} km
+- Volume trend: {summary["volume_trend"]}
+- Volume pattern: {summary["volume_pattern"]}
+- Volume pattern detail: {summary["volume_pattern_detail"]}
+
+Training stimulus breakdown in the last 28 days:
+- Threshold work: {summary["threshold_freq_text"]}
+- Interval / VO2 work: {summary["interval_freq_text"]}
+- Long runs: {summary["long_run_freq_text"]}
+- Easy runs: {summary["easy_runs_last_28"]}
+- Quality runs: {summary["quality_runs_last_28"]}
+- Easy run percentage: {summary["easy_run_pct"]}%
+- Quality run percentage: {summary["quality_run_pct"]}%
+- VO2 present: {summary["vo2_present"]}
+- Threshold present: {summary["threshold_present"]}
+- Long run present: {summary["long_run_present"]}
 
 Progression trends:
-- Threshold trend: {metrics.get('threshold_trend', 'Unknown')}
-- Interval trend: {metrics.get('interval_trend', 'Unknown')}
-- Long run trend: {metrics.get('long_run_trend', 'Unknown')}
-- Flat progression count: {metrics.get('progression_flat_count', 'Unknown')}
-- Rising progression count: {metrics.get('progression_rising_count', 'Unknown')}
+- Threshold trend: {summary["threshold_trend"]}
+- Interval trend: {summary["interval_trend"]}
+- Long run trend: {summary["long_run_trend"]}
+- Flat progression count: {summary["progression_flat_count"]}
+- Rising progression count: {summary["progression_rising_count"]}
 
 Signals:
 {signal_lines}
 
 System-identified focus:
-- Headline: {focus['headline']}
-- Detail: {focus['detail']}
-- Priority: {focus['priority']}
-- Reason: {focus['reason']}
+- Headline: {focus.get("headline", "Unknown")}
+- Detail: {focus.get("detail", "Unknown")}
+- Priority: {focus.get("priority", "Unknown")}
+- Reason: {focus.get("reason", "Unknown")}
 - Supporting signals: {supporting_signals}
 - Timeframe: {timeframe}
 
 Suggested prescription:
 {prescription_lines}
 
-Write exactly 3 short paragraphs:
+INTERPRETATION RULES
+
+- Always acknowledge all major training stimuli that are present: threshold, VO2, and long run.
+- If interval / VO2 sessions are present, mention them explicitly.
+- Do not present VO2 as the limiter unless interval session count is zero or the focus clearly says so.
+- If VO2 is present but overall volume is low, describe VO2 as supportive rather than primary.
+- Clearly distinguish between:
+  1. supportive stimuli that are present
+  2. secondary constraints
+  3. the single primary limiter
+- Refer to consistency using run days, not total run entries, because some runners may log warm-ups, cool-downs, or short additional runs separately.
+- Use session frequency wording that runners can understand naturally, for example "2 sessions in the last 4 weeks" rather than decimal sessions per week.
+
+WRITING TASK
+
+Write exactly 3 short paragraphs.
 
 Paragraph 1 — Diagnosis
-Clearly describe what the current training pattern indicates.
+Describe the current training pattern using the structured facts.
+Acknowledge threshold, interval / VO2, and long-run work if the count is above zero.
 
-Paragraph 2 — Limitation
-State the single biggest limiter in one clear sentence, then briefly explain it.
+Paragraph 2 — Limiter
+State the single biggest limiter clearly, aligned with the system-identified focus.
+If some work is present but not frequent enough, say it is limited or inconsistent.
+If VO2 is present, make clear whether it is supportive rather than limiting.
 
 Paragraph 3 — Action
-Do not repeat the focus headline verbatim as your opening sentence.
-Give a clear, actionable next step aligned to the system-identified focus and prescription.
-Where helpful, refer to the suggested timeframe.
+Give a practical next step aligned with the prescription.
+Do not repeat the focus headline verbatim as the opening sentence.
+Make the recommendation decisive and specific.
 
-Style rules:
-- Be direct and decisive
-- No fluff or motivational language
-- No generic advice
-- Keep sentences tight and practical
+STYLE RULES
+- Be direct
+- Be conservative
+- Be specific
+- No fluff
+- No hype
+- No motivational language
+- No em dashes
 - Sound like a coach reviewing a training log
-- Do not invent missing data
 """.strip()
 
 
 def fallback_explanation(metrics: dict, signals: list[dict], focus: dict) -> str:
+    summary = build_structured_summary(metrics)
+
     top_signals = ", ".join([s["title"] for s in signals[:3]]) if signals else "no major issues detected"
-    prescription = " ".join(focus.get("prescription", [])[:2])
+    prescription = " ".join(focus.get("prescription", [])[:2]).strip()
+    if not prescription:
+        prescription = "Maintain a repeatable weekly structure and progress the main limiter gradually."
 
-    progression_note = ""
-    if metrics.get("progression_confidence") in {"medium", "high"}:
-        progression_note = (
-            f" Progression trends: threshold {metrics.get('threshold_trend', 'unknown')},"
-            f" interval {metrics.get('interval_trend', 'unknown')},"
-            f" long run {metrics.get('long_run_trend', 'unknown')}."
-        )
+    stimulus_parts = []
+    if summary["threshold_present"]:
+        stimulus_parts.append(f"threshold work is present, with {summary['threshold_freq_text']}")
+    else:
+        stimulus_parts.append("no threshold work is present")
 
-    return (
-        f"The main signals are: {top_signals}. "
-        f"Recent training shows {metrics['consistency_label']} consistency and a {metrics['volume_trend']} volume trend."
-        f"{progression_note} "
-        f"The main priority is {focus['headline'].lower()}. {focus['detail']} "
-        f"Next step: {prescription}"
+    if summary["vo2_present"]:
+        stimulus_parts.append(f"VO2 / interval work is present, with {summary['interval_freq_text']}")
+    else:
+        stimulus_parts.append("no VO2 / interval work is present")
+
+    if summary["long_run_present"]:
+        stimulus_parts.append(f"long runs are present, with {summary['long_run_freq_text']}")
+    else:
+        stimulus_parts.append("no long runs are present")
+
+    diagnosis = (
+        f"Recent training shows {summary['consistency_label'].lower()} consistency, "
+        f"with running on {summary['days_with_run_last_28']} of the last 28 days "
+        f"({summary['run_days_per_week']} run days per week) and {summary['recent_avg_weekly_km']} km per week recently. "
+        f"In the current pattern, {', '.join(stimulus_parts)}. "
+        f"Main signals: {top_signals}."
     )
+
+    limiter = (
+        f"The main limiter is {focus.get('headline', 'the current training focus').lower()}. "
+        f"{focus.get('detail', '')}"
+    ).strip()
+
+    action = f"Next step: {prescription}"
+
+    return f"{diagnosis}\n\n{limiter}\n\n{action}"
 
 
 def generate_ai_explanation(metrics: dict, signals: list[dict], focus: dict) -> tuple[str, bool]:
@@ -128,15 +237,18 @@ def generate_ai_explanation(metrics: dict, signals: list[dict], focus: dict) -> 
         client = OpenAI(api_key=OPENAI_API_KEY)
         response = client.chat.completions.create(
             model=OPENAI_MODEL,
-            temperature=0.3,
+            temperature=0.1,
             messages=[
                 {
                     "role": "system",
-                    "content": "You explain structured training analysis clearly and conservatively."
+                    "content": (
+                        "You explain structured running training analysis conservatively. "
+                        "You must stay grounded in the supplied facts and never contradict explicit counts."
+                    ),
                 },
                 {
                     "role": "user",
-                    "content": prompt
+                    "content": prompt,
                 },
             ],
         )

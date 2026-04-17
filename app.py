@@ -512,8 +512,29 @@ with st.expander("View training chart", expanded=False):
         markersize=4.5,
     )
 
-    ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%d %b"))
+    if len(weekly) > 8:
+        xticks = weekly["week_start"][::2]
+    else:
+        xticks = weekly["week_start"]
+
+    ax.set_xticks(xticks)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("w/c %d %b"))
+
+    latest_week = weekly.iloc[-1]
+    ax.scatter(
+        latest_week["week_start"],
+        latest_week["total_distance_km"],
+        s=55,
+        zorder=5,
+    )
+    ax.annotate(
+        "Latest",
+        xy=(latest_week["week_start"], latest_week["total_distance_km"]),
+        xytext=(0, 10),
+        textcoords="offset points",
+        ha="center",
+        fontsize=8,
+    )
 
     ax.set_title("Weekly distance", fontsize=10, pad=10)
     ax.set_xlabel("Week", fontsize=8, labelpad=4)

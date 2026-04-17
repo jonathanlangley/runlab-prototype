@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import pandas as pd
 
 COLUMN_MAPPING = {
@@ -71,6 +72,9 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     df = df[df["duration_min"] > 0]
 
     df["pace_min_per_km"] = df["duration_min"] / df["distance_km"]
-    df["week_start"] = df["date"].dt.to_period("W-MON").apply(lambda p: p.start_time)
+
+    # Monday-start training weeks
+    df["week_start"] = df["date"] - pd.to_timedelta(df["date"].dt.weekday, unit="D")
+    df["week_start"] = df["week_start"].dt.normalize()
 
     return df.sort_values("date").reset_index(drop=True)

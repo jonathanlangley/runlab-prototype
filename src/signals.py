@@ -294,3 +294,12 @@ def derive_signals(metrics: dict) -> list[dict]:
     signals.sort(key=lambda s: (priority_order.get(s["priority"], 3), s["title"]))
 
     return signals
+
+def get_training_summary(df):
+    return {
+        "interval_sessions": len(df[df["workout_type"] == "intervals"]),
+        "threshold_sessions": len(df[df["workout_type"] == "threshold"]),
+        "long_runs": len(df[df["workout_type"] == "long run"]),
+        "easy_runs": len(df[df["workout_type"] == "easy"]),
+        "total_runs": len(df),
+    }

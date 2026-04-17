@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import pandas as pd
 from src.utils import safe_mean, classify_consistency, classify_volume_trend
 
@@ -88,8 +89,8 @@ def weekly_summary(df: pd.DataFrame) -> pd.DataFrame:
             run_count=("date", "count"),
             avg_hr=("avg_hr", "mean"),
             threshold_sessions=("workout_type", lambda s: (s == "threshold").sum()),
-            interval_sessions=("workout_type", lambda s: (s == "interval").sum()),
-            long_runs=("workout_type", lambda s: (s == "long").sum()),
+            interval_sessions=("workout_type", lambda s: (s == "intervals").sum()),
+            long_runs=("workout_type", lambda s: (s == "long run").sum()),
             easy_runs=("workout_type", lambda s: (s == "easy").sum()),
         )
         .sort_values("week_start")
@@ -126,8 +127,8 @@ def overall_metrics(df: pd.DataFrame, weekly: pd.DataFrame) -> dict:
     volume_pattern_info = classify_volume_pattern(weekly)
 
     threshold_last_28 = int((last_28["workout_type"] == "threshold").sum())
-    interval_last_28 = int((last_28["workout_type"] == "interval").sum())
-    long_runs_last_28 = int((last_28["workout_type"] == "long").sum())
+    interval_last_28 = int((last_28["workout_type"] == "intervals").sum())
+    long_runs_last_28 = int((last_28["workout_type"] == "long run").sum())
     easy_runs_last_28 = int((last_28["workout_type"] == "easy").sum())
 
     weeks_of_data = int(weekly["week_start"].nunique())
@@ -145,7 +146,6 @@ def overall_metrics(df: pd.DataFrame, weekly: pd.DataFrame) -> dict:
 
     long_run_ratio = longest_run / recent_avg if recent_avg > 0 else 0.0
 
-    # Progression / plateau metrics
     recent_threshold_avg = safe_mean(recent_weeks["threshold_sessions"])
     prior_threshold_avg = safe_mean(prior_weeks["threshold_sessions"])
 
@@ -200,7 +200,6 @@ def overall_metrics(df: pd.DataFrame, weekly: pd.DataFrame) -> dict:
         "easy_run_pct": round(easy_run_pct, 2),
         "quality_run_pct": round(quality_run_pct, 2),
 
-        # Progression fields
         "recent_threshold_avg": round(recent_threshold_avg, 2),
         "prior_threshold_avg": round(prior_threshold_avg, 2),
         "recent_interval_avg": round(recent_interval_avg, 2),

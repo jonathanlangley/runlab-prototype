@@ -11,15 +11,18 @@ def safe_mean(series: pd.Series) -> float:
         return 0.0
     return float(series.mean())
 
-
 def classify_consistency(days_with_run_last_28: int) -> str:
-    if days_with_run_last_28 >= 24:
+    run_days_per_week = days_with_run_last_28 / 4.0
+
+    if run_days_per_week >= 6:
         return "high"
-    if days_with_run_last_28 >= 18:
+    elif run_days_per_week >= 5:
         return "moderate"
-    return "low"
-
-
+    elif run_days_per_week >= 3:
+        return "low"
+    else:
+        return "very low"
+    
 def classify_volume_trend(change_pct: float) -> str:
     if change_pct >= 8:
         return "rising"
