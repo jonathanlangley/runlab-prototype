@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from openai import OpenAI
@@ -22,14 +21,10 @@ def format_frequency(count: int) -> str:
 
 def build_structured_summary(metrics: dict) -> dict:
     threshold_sessions = int(metrics.get("threshold_sessions_last_28", 0) or 0)
-    vo2_sessions = int(
-        metrics.get("vo2_sessions_last_28",
-        metrics.get("interval_sessions_last_28", 0)) or 0
-    )
+    interval_sessions = int(metrics.get("interval_sessions_last_28", 0) or 0)
     long_runs = int(metrics.get("long_runs_last_28", 0) or 0)
     easy_runs = int(metrics.get("easy_runs_last_28", 0) or 0)
     days_with_run_last_28 = int(metrics.get("days_with_run_last_28", 0) or 0)
-    race_sessions = int(metrics.get("race_sessions_last_28", 0) or 0)
 
     return {
         "weeks_of_data": metrics.get("weeks_of_data", "Unknown"),
@@ -47,23 +42,22 @@ def build_structured_summary(metrics: dict) -> dict:
         "volume_pattern": metrics.get("volume_pattern", "Unknown"),
         "volume_pattern_detail": metrics.get("volume_pattern_detail", "Unknown"),
         "threshold_sessions_last_28": threshold_sessions,
-        "vo2_sessions_last_28": vo2_sessions,
-        "race_sessions_last_28": race_sessions,
+        "interval_sessions_last_28": interval_sessions,
         "long_runs_last_28": long_runs,
         "easy_runs_last_28": easy_runs,
         "quality_runs_last_28": metrics.get("quality_runs_last_28", 0),
         "easy_run_pct": int(metrics.get("easy_run_pct", 0) * 100),
         "quality_run_pct": int(metrics.get("quality_run_pct", 0) * 100),
         "threshold_trend": metrics.get("threshold_trend", "Unknown"),
-        "vo2_trend": metrics.get("vo2_trend", metrics.get("interval_trend", "Unknown")),
+        "interval_trend": metrics.get("interval_trend", "Unknown"),
         "long_run_trend": metrics.get("long_run_trend", "Unknown"),
         "progression_flat_count": metrics.get("progression_flat_count", "Unknown"),
         "progression_rising_count": metrics.get("progression_rising_count", "Unknown"),
-        "vo2_present": vo2_sessions > 0,
+        "vo2_present": interval_sessions > 0,
         "threshold_present": threshold_sessions > 0,
         "long_run_present": long_runs > 0,
         "threshold_freq_text": format_frequency(threshold_sessions),
-        "vo2_freq_text": format_frequency(vo2_sessions),
+        "interval_freq_text": format_frequency(interval_sessions),
         "long_run_freq_text": format_frequency(long_runs),
     }
 
@@ -114,8 +108,7 @@ Training summary:
 
 Training stimulus breakdown in the last 28 days:
 - Threshold work: {summary["threshold_freq_text"]}
-- VO2 work: {summary["vo2_freq_text"]}
-- Race efforts: {summary["race_sessions_last_28"]}
+- Interval / VO2 work: {summary["interval_freq_text"]}
 - Long runs: {summary["long_run_freq_text"]}
 - Easy runs: {summary["easy_runs_last_28"]}
 - Quality runs: {summary["quality_runs_last_28"]}
@@ -127,7 +120,7 @@ Training stimulus breakdown in the last 28 days:
 
 Progression trends:
 - Threshold trend: {summary["threshold_trend"]}
-- VO2 trend: {summary["vo2_trend"]}
+- Interval trend: {summary["interval_trend"]}
 - Long run trend: {summary["long_run_trend"]}
 - Flat progression count: {summary["progression_flat_count"]}
 - Rising progression count: {summary["progression_rising_count"]}
@@ -149,18 +142,17 @@ Suggested prescription:
 INTERPRETATION RULES
 
 - Always acknowledge all major training stimuli that are present: threshold, VO2, and long run.
-- If VO2 sessions are present, mention them explicitly.
-- Do not present VO2 as the limiter unless the data clearly points that way.
+- If interval / VO2 sessions are present, mention them explicitly.
+- Do not present VO2 as the limiter unless interval session count is zero or the focus clearly says so.
 - If VO2 is present but overall volume is low, describe VO2 as supportive rather than primary.
-- Treat race efforts as supportive high-intensity work unless the focus explicitly depends on them.
 - Do not simply list session types. Explain their relative importance in the current training pattern.
 - Clearly distinguish between:
-  1. the primary limiter
-  2. secondary constraints
-  3. supportive stimuli that are present but not currently limiting progress
+  1. the primary limiter (what matters most)
+  2. secondary constraints (what is underdeveloped)
+  3. supportive stimuli (what is present but not limiting progress)
 - Always describe training in this hierarchy, not as a list.
-- Refer to consistency using run days, not total run entries.
-- Use session frequency wording that runners can understand naturally.
+- Refer to consistency using run days, not total run entries, because some runners may log warm-ups, cool-downs, or short additional runs separately.
+- Use session frequency wording that runners can understand naturally, for example "2 sessions in the last 4 weeks" rather than decimal sessions per week.
 
 WRITING TASK
 
@@ -168,7 +160,7 @@ Write exactly 3 short paragraphs.
 
 Paragraph 1 — Diagnosis
 Describe the current training pattern using the structured facts.
-Acknowledge threshold, VO2, and long-run work if the count is above zero.
+Acknowledge threshold, interval / VO2, and long-run work if the count is above zero.
 
 Paragraph 2 — Hierarchy
 State the single primary limiter first.
@@ -214,15 +206,13 @@ def fallback_explanation(metrics: dict, signals: list[dict], focus: dict) -> str
 
     supportive = []
     if summary["vo2_present"]:
-        supportive.append(f"VO2 work is present, with {summary['vo2_freq_text']}")
-    if summary["race_sessions_last_28"] > 0:
-        supportive.append(f"race efforts are also present, with {summary['race_sessions_last_28']} effort(s) in the last 4 weeks")
+        supportive.append(f"VO2 / interval work is present, with {summary['interval_freq_text']}")
 
     diagnosis = (
         f"Recent training shows {summary['consistency_label'].lower()} consistency, "
         f"with running on {summary['days_with_run_last_28']} of the last 28 days "
         f"({summary['run_days_per_week']} run days per week) and {summary['recent_avg_weekly_km']} km per week recently. "
-        f"Threshold work is {summary['threshold_freq_text']}, VO2 work is {summary['vo2_freq_text']}, "
+        f"Threshold work is {summary['threshold_freq_text']}, interval / VO2 work is {summary['interval_freq_text']}, "
         f"and long runs are {summary['long_run_freq_text']}."
     )
 

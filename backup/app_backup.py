@@ -18,6 +18,71 @@ except Exception:
     build_pace_bands = None
     CLASSIFIER_AVAILABLE = False
 
+# -------------------------------
+# Training hierarchy helper
+# -------------------------------
+
+def build_training_hierarchy(metrics: dict, focus: dict) -> dict:
+    primary = {
+        "label": focus.get("headline", "Primary limiter"),
+        "detail": focus.get("detail", ""),
+    }
+
+    secondary = []
+    supportive = []
+
+    threshold_count = metrics.get("threshold_sessions_last_28", 0)
+    interval_count = metrics.get("interval_sessions_last_28", 0)
+    long_run_count = metrics.get("long_runs_last_28", 0)
+
+    # Threshold
+    if threshold_count > 0:
+        if threshold_count <= 2:
+            secondary.append({
+                "label": "Threshold work",
+                "detail": f"Present but limited, with {threshold_count} session(s) in the last 4 weeks.",
+            })
+        else:
+            supportive.append({
+                "label": "Threshold work",
+                "detail": f"Present, with {threshold_count} session(s) in the last 4 weeks.",
+            })
+    else:
+        secondary.append({
+            "label": "Threshold work",
+            "detail": "Absent in the last 4 weeks.",
+        })
+
+    # Long runs
+    if long_run_count > 0:
+        if long_run_count <= 2:
+            secondary.append({
+                "label": "Long run stimulus",
+                "detail": f"Present but inconsistent, with {long_run_count} long run(s) in the last 4 weeks.",
+            })
+        else:
+            supportive.append({
+                "label": "Long run stimulus",
+                "detail": f"Present, with {long_run_count} long run(s) in the last 4 weeks.",
+            })
+    else:
+        secondary.append({
+            "label": "Long run stimulus",
+            "detail": "Absent in the last 4 weeks.",
+        })
+
+    # VO2
+    if interval_count > 0:
+        supportive.append({
+            "label": "VO2 / interval work",
+            "detail": f"Present, with {interval_count} session(s) in the last 4 weeks.",
+        })
+
+    return {
+        "primary": primary,
+        "secondary": secondary,
+        "supportive": supportive,
+    }
 
 def parse_mmss_to_seconds(time_str: str):
     try:
@@ -391,6 +456,7 @@ metrics = overall_metrics(df, weekly)
 signals = derive_signals(metrics)
 focus = determine_focus(metrics, signals)
 ai_text, used_ai = generate_ai_explanation(metrics, signals, focus)
+hierarchy = build_training_hierarchy(metrics, focus)
 
 metric_row = st.columns(4)
 metric_row[0].metric("28-day distance", f"{metrics['total_distance_last_28']} km")
@@ -420,23 +486,25 @@ st.divider()
 
 st.markdown("## Diagnosis")
 st.markdown(
-    '<div class="section-note">The strongest signals detected from the recent training pattern.</div>',
+    '<div class="section-note">The current training pattern ranked by what matters most.</div>',
     unsafe_allow_html=True,
 )
 
-top_signals = signals[:3] if signals else []
+st.markdown("### Primary limiter")
+st.markdown(f"**{hierarchy['primary']['label']}**")
+st.write(hierarchy["primary"]["detail"])
 
-if top_signals:
-    for signal in top_signals:
-        priority_icon = {
-            "high": "🔴",
-            "medium": "🟠",
-            "low": "🟢",
-        }.get(signal["priority"], "⚪")
-        st.markdown(f"**{priority_icon} {signal['title']}**")
-        st.write(signal["detail"])
-else:
-    st.write("No major limiting signals detected.")
+if hierarchy["secondary"]:
+    st.markdown("### Secondary constraints")
+    for item in hierarchy["secondary"]:
+        st.markdown(f"**{item['label']}**")
+        st.write(item["detail"])
+
+if hierarchy["supportive"]:
+    st.markdown("### Supportive stimuli")
+    for item in hierarchy["supportive"]:
+        st.markdown(f"**{item['label']}**")
+        st.write(item["detail"])
 
 st.divider()
 
@@ -512,8 +580,29 @@ with st.expander("View training chart", expanded=False):
         markersize=4.5,
     )
 
-    ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%d %b"))
+    if len(weekly) > 8:
+        xticks = weekly["week_start"][::2]
+    else:
+        xticks = weekly["week_start"]
+
+    ax.set_xticks(xticks)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("w/c %d %b"))
+
+    latest_week = weekly.iloc[-1]
+    ax.scatter(
+        latest_week["week_start"],
+        latest_week["total_distance_km"],
+        s=55,
+        zorder=5,
+    )
+    ax.annotate(
+        "Latest",
+        xy=(latest_week["week_start"], latest_week["total_distance_km"]),
+        xytext=(0, 10),
+        textcoords="offset points",
+        ha="center",
+        fontsize=8,
+    )
 
     ax.set_title("Weekly distance", fontsize=10, pad=10)
     ax.set_xlabel("Week", fontsize=8, labelpad=4)

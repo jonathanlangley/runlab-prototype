@@ -1,11 +1,10 @@
-
 from __future__ import annotations
 
 
 def rule_consistency(metrics: dict) -> list[dict]:
     consistency = metrics["consistency_label"]
 
-    if consistency in {"very low", "low"}:
+    if consistency == "low":
         return [
             {
                 "title": "Low consistency",
@@ -189,52 +188,35 @@ def rule_long_run(metrics: dict) -> list[dict]:
 def rule_balance(metrics: dict) -> list[dict]:
     quality_pct = metrics["quality_run_pct"]
     easy_pct = metrics["easy_run_pct"]
-    vo2_per_week = metrics.get("vo2_sessions_per_week", metrics.get("interval_sessions_per_week", 0))
-    threshold_per_week = metrics.get("threshold_sessions_per_week", 0)
-
-    signals: list[dict] = []
 
     if quality_pct > 0.40 and easy_pct < 0.70:
-        signals.append(
+        return [
             {
                 "title": "Intensity imbalance",
                 "detail": "A large share of runs are quality sessions. The training mix may be too intensity-heavy to maximise adaptation.",
                 "priority": "high",
                 "rule_id": "balance",
             }
-        )
+        ]
 
     if quality_pct < 0.10:
-        signals.append(
+        return [
             {
                 "title": "Low quality density",
-                "detail": "There is very little threshold or VO2 work in the current training mix.",
+                "detail": "There is very little threshold or interval work in the current training mix.",
                 "priority": "medium",
                 "rule_id": "balance",
             }
-        )
+        ]
 
-    if vo2_per_week >= 1.0 and threshold_per_week < 0.75:
-        signals.append(
-            {
-                "title": "VO2-heavy relative to threshold",
-                "detail": "VO2 work is showing up more often than threshold work. The pattern may be leaning too hard toward top-end intensity without enough threshold support underneath.",
-                "priority": "medium",
-                "rule_id": "balance",
-            }
-        )
-
-    if not signals:
-        signals.append(
-            {
-                "title": "Training balance broadly healthy",
-                "detail": "The current mix of easy and quality running looks broadly supportive.",
-                "priority": "low",
-                "rule_id": "balance",
-            }
-        )
-
-    return signals
+    return [
+        {
+            "title": "Training balance broadly healthy",
+            "detail": "The current mix of easy and quality running looks broadly supportive.",
+            "priority": "low",
+            "rule_id": "balance",
+        }
+    ]
 
 
 def rule_progression(metrics: dict) -> list[dict]:
@@ -247,50 +229,77 @@ def rule_progression(metrics: dict) -> list[dict]:
         and recent_km >= 50
         and metrics["threshold_sessions_per_week"] >= 1.0
         and metrics["long_runs_last_28"] >= 3
+        and metrics["quality_run_pct"] >= 0.10
+        and metrics["quality_run_pct"] <= 0.40
     )
 
-    if strong_structure and confidence == "low":
+    flat_count = metrics["progression_flat_count"]
+    rising_count = metrics["progression_rising_count"]
+
+    if confidence == "low":
+        return []
+
+    if strong_structure and flat_count >= 3 and rising_count == 0:
         return [
             {
                 "title": "Well-structured but static",
-                "detail": "The training pattern looks broadly sound, but several key levers now appear flat rather than progressing.",
+                "detail": "The overall training pattern looks solid, but the main training levers are not progressing. This suggests that the current stimulus may no longer be enough.",
                 "priority": "medium",
                 "rule_id": "progression",
             }
         ]
 
-    flat_count = int(metrics.get("progression_flat_count", 0) or 0)
-    if flat_count >= 2:
+    if confidence in {"medium", "high"} and flat_count >= 3 and metrics["volume_trend"] == "flat":
         return [
             {
                 "title": "Limited progression across key levers",
-                "detail": "More than one important training component is currently flat. A clearer progression signal may be needed.",
+                "detail": "Several core training components are flat across recent blocks. Progress may stall unless one of the main levers is progressed.",
                 "priority": "medium",
                 "rule_id": "progression",
             }
         ]
 
-    return [
-        {
-            "title": "Progression signals acceptable",
-            "detail": "The current pattern still shows enough movement across key training components.",
-            "priority": "low",
-            "rule_id": "progression",
-        }
-    ]
+    if rising_count >= 2:
+        return [
+            {
+                "title": "Progression signals present",
+                "detail": "Multiple training components are moving in the right direction, which supports continued development if the load remains sustainable.",
+                "priority": "low",
+                "rule_id": "progression",
+            }
+        ]
+
+    return []
+
+
+RULES = [
+    rule_consistency,
+    rule_volume,
+    rule_threshold,
+    rule_long_run,
+    rule_balance,
+    rule_progression,
+]
 
 
 def derive_signals(metrics: dict) -> list[dict]:
-    all_signals: list[dict] = []
-    all_signals.extend(rule_consistency(metrics))
-    all_signals.extend(rule_volume(metrics))
-    all_signals.extend(rule_threshold(metrics))
-    all_signals.extend(rule_long_run(metrics))
-    all_signals.extend(rule_balance(metrics))
-    all_signals.extend(rule_progression(metrics))
+    signals: list[dict] = []
+
+    for rule in RULES:
+        rule_signals = rule(metrics)
+        if rule_signals:
+            signals.extend(rule_signals)
 
     priority_order = {"high": 0, "medium": 1, "low": 2}
-    return sorted(
-        all_signals,
-        key=lambda s: (priority_order.get(s["priority"], 9), s["title"])
-    )
+    signals.sort(key=lambda s: (priority_order.get(s["priority"], 3), s["title"]))
+
+    return signals
+
+def get_training_summary(df):
+    return {
+        "interval_sessions": len(df[df["workout_type"] == "intervals"]),
+        "threshold_sessions": len(df[df["workout_type"] == "threshold"]),
+        "long_runs": len(df[df["workout_type"] == "long run"]),
+        "easy_runs": len(df[df["workout_type"] == "easy"]),
+        "total_runs": len(df),
+    }

@@ -69,7 +69,7 @@ def build_pace_bands(user_profile: Dict[str, Any]) -> Dict[str, Optional[float]]
 
     Design:
     - very_fast / VO2 anchored to current 5K pace
-    - threshold anchored primarily to HM pace (explicit or estimated)
+    - threshold anchored primarily to HM pace, with optional 5K blend for stability
     - steady / easy anchored to marathon pace (explicit or estimated)
     """
     current_5k_time_sec = parse_time_to_seconds(user_profile.get("current_5k_time"))
@@ -93,7 +93,6 @@ def build_pace_bands(user_profile: Dict[str, Any]) -> Dict[str, Optional[float]]
         current_marathon_pace_sec = current_marathon_time_sec / 42.195
     elif current_hm_pace_sec is not None:
         # Pragmatic training anchor rather than a pure race equivalence.
-        # This places marathon pace in a realistic training relationship to HM pace.
         current_marathon_pace_sec = current_hm_pace_sec + 15.0
     elif current_5k_time_sec:
         estimated_marathon_time_sec = riegel_predict_time(current_5k_time_sec, 5.0, 42.195)
@@ -114,18 +113,33 @@ def build_pace_bands(user_profile: Dict[str, Any]) -> Dict[str, Optional[float]]
         "current_marathon_pace_sec": current_marathon_pace_sec,
     }
 
+    # 1. Speed-based bands from 5K
     if current_5k_pace_sec is not None:
         bands["very_fast_upper"] = current_5k_pace_sec - 12.0
         bands["vo2_lower"] = current_5k_pace_sec - 12.0
         bands["vo2_upper"] = current_5k_pace_sec + 3.0
 
-    if current_hm_pace_sec is not None:
-        threshold_lower = current_hm_pace_sec - 8.0
+    # 2. Threshold anchor: blend HM with 5K-derived estimate where possible
+    threshold_anchor_sec = None
+
+    if current_hm_pace_sec is not None and current_5k_pace_sec is not None:
+        threshold_anchor_sec = (
+            0.7 * current_hm_pace_sec
+            + 0.3 * (current_5k_pace_sec * 1.08)
+        )
+    elif current_hm_pace_sec is not None:
+        threshold_anchor_sec = current_hm_pace_sec
+    elif current_5k_pace_sec is not None:
+        threshold_anchor_sec = current_5k_pace_sec * 1.08
+
+    if threshold_anchor_sec is not None:
+        threshold_lower = threshold_anchor_sec - 8.0
         if bands["vo2_upper"] is not None:
             threshold_lower = max(threshold_lower, bands["vo2_upper"])
         bands["threshold_lower"] = threshold_lower
-        bands["threshold_upper"] = current_hm_pace_sec + 7.0
+        bands["threshold_upper"] = threshold_anchor_sec + 7.0
 
+    # 3. Aerobic bands from marathon pace
     if current_marathon_pace_sec is not None:
         steady_lower = bands["threshold_upper"] if bands["threshold_upper"] is not None else current_marathon_pace_sec - 10.0
         steady_lower = max(steady_lower, current_marathon_pace_sec - 10.0)
@@ -136,7 +150,6 @@ def build_pace_bands(user_profile: Dict[str, Any]) -> Dict[str, Optional[float]]
         bands["recovery_lower"] = steady_upper + 20.0
 
     return bands
-
 
 def classify_pace_band(pace_sec: Optional[float], bands: Dict[str, Optional[float]]) -> str:
     """Assign a pace band using the scalable pace zones."""

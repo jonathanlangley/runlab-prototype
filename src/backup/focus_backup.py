@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 
@@ -79,7 +78,7 @@ FOCUS_LIBRARY = {
         "reason": "Training balance is skewed toward quality sessions",
         "prescription": [
             "Reduce the density of hard sessions",
-            "Protect threshold support while cutting back on unnecessary VO2 load",
+            "Protect at least one threshold or interval session, not both at high frequency",
             "Increase the proportion of easy running",
             "Stabilise the weekly rhythm before progressing again",
         ],
@@ -152,27 +151,14 @@ FOCUS_LIBRARY = {
     },
     "Low quality density": {
         "headline": "Add a clearer quality stimulus",
-        "detail": "The training pattern is very aerobic at the moment. A clearer dose of threshold or VO2 work may be needed.",
+        "detail": "The training pattern is very aerobic at the moment. A clearer dose of threshold or interval work may be needed.",
         "priority": "medium",
         "reason": "Very little quality work detected",
         "prescription": [
             "Introduce one quality session each week",
-            "Start with threshold before adding more aggressive VO2 work",
+            "Start with threshold before adding more aggressive intensity",
             "Keep the rest of the week controlled",
             "Review the response after a few weeks",
-        ],
-        "timeframe": "3-4 weeks",
-    },
-    "VO2-heavy relative to threshold": {
-        "headline": "Rebalance VO2 against threshold support",
-        "detail": "VO2 work is showing up more often than threshold work. The pattern may be leaning too hard toward top-end intensity without enough threshold support underneath.",
-        "priority": "medium",
-        "reason": "VO2 sessions are outnumbering threshold sessions",
-        "prescription": [
-            "Hold VO2 to a manageable dose rather than adding more top-end intensity",
-            "Make threshold work the more repeatable weekly quality session",
-            "Support the quality work with enough easy volume",
-            "Reassess after a few weeks of a more balanced structure",
         ],
         "timeframe": "3-4 weeks",
     },

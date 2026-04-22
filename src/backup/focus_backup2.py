@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 
@@ -79,7 +78,7 @@ FOCUS_LIBRARY = {
         "reason": "Training balance is skewed toward quality sessions",
         "prescription": [
             "Reduce the density of hard sessions",
-            "Protect threshold support while cutting back on unnecessary VO2 load",
+            "Protect one main quality session rather than stacking multiple hard efforts",
             "Increase the proportion of easy running",
             "Stabilise the weekly rhythm before progressing again",
         ],
@@ -157,28 +156,15 @@ FOCUS_LIBRARY = {
         "reason": "Very little quality work detected",
         "prescription": [
             "Introduce one quality session each week",
-            "Start with threshold before adding more aggressive VO2 work",
+            "Start with threshold before adding more aggressive intensity",
             "Keep the rest of the week controlled",
             "Review the response after a few weeks",
         ],
-        "timeframe": "3-4 weeks",
-    },
-    "VO2-heavy relative to threshold": {
-        "headline": "Rebalance VO2 against threshold support",
-        "detail": "VO2 work is showing up more often than threshold work. The pattern may be leaning too hard toward top-end intensity without enough threshold support underneath.",
-        "priority": "medium",
-        "reason": "VO2 sessions are outnumbering threshold sessions",
-        "prescription": [
-            "Hold VO2 to a manageable dose rather than adding more top-end intensity",
-            "Make threshold work the more repeatable weekly quality session",
-            "Support the quality work with enough easy volume",
-            "Reassess after a few weeks of a more balanced structure",
-        ],
-        "timeframe": "3-4 weeks",
+        "timeframe": "2-4 weeks",
     },
     "Volume plateau": {
-        "headline": "Progress training load carefully",
-        "detail": "The current pattern looks stable, but a small increase in volume or quality may be needed to keep progress moving.",
+        "headline": "Create a clearer progression signal",
+        "detail": "The current weekly volume looks static. Progress may improve if one main lever is nudged upward in a controlled way.",
         "priority": "medium",
         "reason": "Volume trend is flat",
         "prescription": [
@@ -215,23 +201,32 @@ FOCUS_LIBRARY = {
         ],
         "timeframe": "2-4 weeks",
     },
+    "VO2-heavy relative to threshold": {
+        "headline": "Shift emphasis from VO2 toward threshold support",
+        "detail": "Higher-intensity work is present, but the current pattern appears to be leaning too much on VO2-style sessions relative to threshold development.",
+        "priority": "medium",
+        "reason": "VO2-style work is showing up more often than threshold support",
+        "prescription": [
+            "Keep the harder work in the week, but make threshold the main quality anchor",
+            "Reduce the density of very hard sessions",
+            "Use repeatable threshold formats before adding more VO2 load",
+            "Let the week revolve around sustainable aerobic support",
+        ],
+        "timeframe": "3-4 weeks",
+    },
 }
 
 
 def determine_focus(metrics: dict, signals: list[dict]) -> dict:
     if not signals:
         return _default_focus()
-
     for priority in ["high", "medium", "low"]:
         priority_signals = [s for s in signals if s["priority"] == priority]
-
         for signal in priority_signals:
             signal_title = signal["title"]
-
             if signal_title in FOCUS_LIBRARY:
                 focus_template = FOCUS_LIBRARY[signal_title]
                 supporting = [s["title"] for s in priority_signals if s["title"] != signal_title]
-
                 return {
                     "headline": focus_template["headline"],
                     "detail": focus_template["detail"],
@@ -241,5 +236,4 @@ def determine_focus(metrics: dict, signals: list[dict]) -> dict:
                     "prescription": focus_template["prescription"],
                     "timeframe": focus_template["timeframe"],
                 }
-
     return _default_focus()
