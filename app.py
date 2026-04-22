@@ -647,26 +647,105 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+
 st.markdown("### Weekly structure")
 
-current_struct = build_weekly_structure(metrics)
-target_struct = get_target_weekly_structure(focus)
+balance_df, total_run_days = build_balance_comparison_df(df, focus)
 
-ws_col_1, ws_col_2, ws_col_3 = st.columns(3)
-for i, label in enumerate(["Threshold", "VO2", "Long run"]):
-    current_val = current_struct[label]
-    target_val = target_struct[label]
+current_struct = build_weekly_structure(metrics)
+target_struct = get_target_weekly_structure(focus, total_run_days)
+
+current_quality = round(current_struct["Threshold"] + current_struct["VO2"], 2)
+target_quality = round(target_struct["Threshold"] + target_struct["VO2"], 2)
+quality_delta = round(current_quality - target_quality, 2)
+
+ws_col_1, ws_col_2, ws_col_3, ws_col_4 = st.columns(4)
+
+structure_cards = [
+    ("Threshold", current_struct["Threshold"], target_struct["Threshold"], ws_col_1),
+    ("VO2", current_struct["VO2"], target_struct["VO2"], ws_col_2),
+    ("Long run", current_struct["Long run"], target_struct["Long run"], ws_col_3),
+]
+
+for label, current_val, target_val, col in structure_cards:
     delta_val = round(current_val - target_val, 2)
-    [ws_col_1, ws_col_2, ws_col_3][i].metric(
+
+    if abs(delta_val) < 0.25:
+        delta_text = "On target"
+    else:
+        delta_text = f"{delta_val:+.2f} vs target"
+
+    col.metric(
         f"{label} / week",
-        f"{current_val}",
-        f"{delta_val:+} vs target",
+        f"{current_val:.2f}",
+        delta_text,
     )
 
-st.caption("Target structure is framed as 2–3 key sessions per week, including the long run.")
+if abs(quality_delta) < 0.25:
+    quality_delta_text = "On target"
+else:
+    quality_delta_text = f"{quality_delta:+.2f} vs target"
+
+ws_col_4.metric(
+    "Quality sessions / week",
+    f"{current_quality:.2f}",
+    quality_delta_text,
+)
+
+st.caption(
+    "Targets reflect the current training balance recommendation. "
+    "For a 5K/10K runner, this usually means keeping quality controlled and letting easy running do most of the support work."
+)
+
+quality_message = (
+    f"Current pattern: {current_quality:.2f} quality sessions/week "
+    f"(threshold + VO2) versus a recommended {target_quality:.2f}/week."
+)
+
+if quality_delta > 0.25:
+    quality_message += (
+        " The issue here is not that VO2 is inherently wrong, but that the combined density of hard running is higher than the current target."
+    )
+elif quality_delta < -0.25:
+    quality_message += (
+        " The current structure may be a little too light on quality relative to the target."
+    )
+else:
+    quality_message += (
+        " The overall quality density is close to the current target."
+    )
+
+st.markdown(
+    f"<div class='balance-note'>{quality_message}</div>",
+    unsafe_allow_html=True,
+)
+
+st.caption(
+    "Note: individual session types may both appear elevated, but the key signal here is the combined quality load."
+)
+
+if quality_delta > 0.50:
+    verdict = "Intensity overloaded"
+    verdict_detail = "Too much hard running relative to the current training mix."
+elif quality_delta < -0.50:
+    verdict = "Under-stimulated"
+    verdict_detail = "The current pattern may be slightly too light on quality relative to the target."
+else:
+    verdict = "Balanced"
+    verdict_detail = "Overall quality density is close to the current target."
+
+st.markdown(
+    f"""
+    <div class="mini-card">
+        <div class="mini-label">Training load status</div>
+        <div class="mini-value">{verdict}</div>
+        <div class="small-muted">{verdict_detail}</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 st.markdown("### Training balance")
-balance_df, total_run_days = build_balance_comparison_df(df, focus)
 
 balance_chart_df = balance_df.copy()
 balance_chart_df["ideal_pct"] = balance_chart_df["Ideal days"].apply(

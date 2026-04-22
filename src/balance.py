@@ -1,23 +1,96 @@
 import pandas as pd
 
 
-def build_ideal_targets(focus: dict) -> dict[str, int]:
+SESSION_ORDER = ["Easy", "Threshold", "VO2", "Long run"]
+
+
+def allocate_targets_from_weights(total_run_days: int, weights: dict[str, float]) -> dict[str, int]:
+    """
+    Convert weight proportions into integer target run days that sum exactly
+    to total_run_days.
+    """
+    if total_run_days <= 0:
+        return {session: 0 for session in SESSION_ORDER}
+
+    raw = {session: weights.get(session, 0.0) * total_run_days for session in SESSION_ORDER}
+    base = {session: int(raw[session]) for session in SESSION_ORDER}
+
+    allocated = sum(base.values())
+    remainder = total_run_days - allocated
+
+    if remainder > 0:
+        fractional_order = sorted(
+            SESSION_ORDER,
+            key=lambda s: raw[s] - base[s],
+            reverse=True,
+        )
+        for i in range(remainder):
+            base[fractional_order[i % len(fractional_order)]] += 1
+
+    return base
+
+
+def build_ideal_targets(focus: dict, total_run_days: int) -> dict[str, int]:
+    """
+    Build ideal targets scaled to the runner's actual number of distinct run days.
+    The weights are tuned for a 5K/10K style runner for now.
+    """
     headline = focus.get("headline", "").lower()
 
-    targets = {
-        "Easy": 14,
-        "Threshold": 3,
-        "VO2": 1,
-        "Long run": 4,
+    # Default 5K/10K style balance
+    weights = {
+        "Easy": 0.70,
+        "Threshold": 0.15,
+        "VO2": 0.05,
+        "Long run": 0.10,
     }
 
     if "threshold" in headline:
-        targets["Threshold"] = 4
+        weights = {
+            "Easy": 0.65,
+            "Threshold": 0.20,
+            "VO2": 0.05,
+            "Long run": 0.10,
+        }
     elif "volume" in headline or "aerobic" in headline:
-        targets["Easy"] = 15
-        targets["VO2"] = 0
-    elif "intensity" in headline or "vo2" in headline or "rebalance" in headline:
-        targets["VO2"] = 0
+        weights = {
+            "Easy": 0.70,
+            "Threshold": 0.10,
+            "VO2": 0.05,
+            "Long run": 0.15,
+        }
+    elif "long run" in headline or "endurance" in headline:
+        weights = {
+            "Easy": 0.65,
+            "Threshold": 0.10,
+            "VO2": 0.05,
+            "Long run": 0.20,
+        }
+    elif "intensity" in headline or "vo2" in headline or "rebalance" in headline or "recovery" in headline:
+        weights = {
+            "Easy": 0.75,
+            "Threshold": 0.10,
+            "VO2": 0.05,
+            "Long run": 0.10,
+        }
+    elif "frequency" in headline or "consistency" in headline:
+        weights = {
+            "Easy": 0.75,
+            "Threshold": 0.10,
+            "VO2": 0.05,
+            "Long run": 0.10,
+        }
+
+    targets = allocate_targets_from_weights(total_run_days, weights)
+
+    # Sensible safeguards
+    if total_run_days >= 5 and (
+        "intensity" in headline or "vo2" in headline or "rebalance" in headline
+    ):
+        targets["VO2"] = max(1, targets["VO2"])
+        total_assigned = sum(targets.values())
+        if total_assigned > total_run_days:
+            targets["Easy"] = max(0, targets["Easy"] - (total_assigned - total_run_days))
 
     return targets
 
@@ -29,21 +102,19 @@ def build_balance_comparison_df(df: pd.DataFrame, focus: dict) -> tuple[pd.DataF
     Long run > VO2/race > Threshold > Easy
     """
     if df.empty or "date" not in df.columns or "workout_type" not in df.columns:
+        empty_total = 0
+        empty_targets = build_ideal_targets(focus, empty_total)
         empty_df = pd.DataFrame(
             {
-                "Session type": ["Easy", "Threshold", "VO2", "Long run"],
+                "Session type": SESSION_ORDER,
                 "Current days": [0, 0, 0, 0],
-                "Ideal days": [
-                    build_ideal_targets(focus)["Easy"],
-                    build_ideal_targets(focus)["Threshold"],
-                    build_ideal_targets(focus)["VO2"],
-                    build_ideal_targets(focus)["Long run"],
-                ],
+                "Ideal days": [empty_targets[s] for s in SESSION_ORDER],
                 "Gap": [0, 0, 0, 0],
                 "Current %": [0.0, 0.0, 0.0, 0.0],
+                "Ideal %": [0.0, 0.0, 0.0, 0.0],
             }
         )
-        return empty_df, 0
+        return empty_df, empty_total
 
     day_df = df.copy()
     day_df["run_date"] = pd.to_datetime(day_df["date"]).dt.date
@@ -81,12 +152,13 @@ def build_balance_comparison_df(df: pd.DataFrame, focus: dict) -> tuple[pd.DataF
         "Long run": int((dominant_by_day["balance_label"] == "Long run").sum()),
     }
 
-    ideal_counts = build_ideal_targets(focus)
+    ideal_counts = build_ideal_targets(focus, total_run_days)
 
     rows = []
-    for session_type in ["Easy", "Threshold", "VO2", "Long run"]:
+    for session_type in SESSION_ORDER:
         current_days = current_counts.get(session_type, 0)
         ideal_days = ideal_counts.get(session_type, 0)
+
         rows.append(
             {
                 "Session type": session_type,
@@ -94,6 +166,7 @@ def build_balance_comparison_df(df: pd.DataFrame, focus: dict) -> tuple[pd.DataF
                 "Ideal days": ideal_days,
                 "Gap": current_days - ideal_days,
                 "Current %": round(current_days / total_run_days * 100, 1) if total_run_days else 0.0,
+                "Ideal %": round(ideal_days / total_run_days * 100, 1) if total_run_days else 0.0,
             }
         )
 
@@ -110,6 +183,7 @@ def build_balance_interpretation(balance_df: pd.DataFrame, focus: dict, total_ru
         current_days = int(balance_df.loc[balance_df["Session type"] == label, "Current days"].iloc[0])
         ideal_days = int(balance_df.loc[balance_df["Session type"] == label, "Ideal days"].iloc[0])
         diff = current_days - ideal_days
+
         if diff > 0:
             return f"{label} is {abs(diff)} run day(s) above the current target"
         if diff < 0:
@@ -131,10 +205,16 @@ def build_balance_interpretation(balance_df: pd.DataFrame, focus: dict, total_ru
         )
 
     if "threshold" in headline:
-        return prefix + f"This recommendation is supported by the current mix. {gap_text('Threshold')}."
+        return prefix + (
+            f"This recommendation is supported by the current mix. "
+            f"{gap_text('Threshold')}."
+        )
 
     if "long run" in headline or "endurance" in headline:
-        return prefix + f"The endurance gap shows up clearly in the session mix. {gap_text('Long run')}."
+        return prefix + (
+            f"The endurance gap shows up clearly in the session mix. "
+            f"{gap_text('Long run')}."
+        )
 
     if "rebalance" in headline or "intensity" in headline or "recovery" in headline or "vo2" in headline:
         return prefix + (

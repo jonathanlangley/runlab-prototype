@@ -1,3 +1,8 @@
+from __future__ import annotations
+
+from src.balance import build_ideal_targets
+
+
 def build_weekly_structure(metrics: dict) -> dict[str, float]:
     weeks = 4.0
     return {
@@ -13,23 +18,22 @@ def build_weekly_structure(metrics: dict) -> dict[str, float]:
     }
 
 
-def get_target_weekly_structure(focus: dict) -> dict[str, float]:
-    headline = focus.get("headline", "").lower()
+def get_target_weekly_structure(focus: dict, total_run_days: int, weeks: float = 4.0) -> dict[str, float]:
+    """
+    Derive weekly structure targets from the same ideal target logic used by the
+    training balance chart, so both sections stay aligned.
+    """
+    ideal_counts = build_ideal_targets(focus, total_run_days)
 
-    targets = {
-        "Threshold": 0.75,
-        "VO2": 0.25,
-        "Long run": 1.0,
+    if weeks <= 0:
+        return {
+            "Threshold": 0.0,
+            "VO2": 0.0,
+            "Long run": 0.0,
+        }
+
+    return {
+        "Threshold": round(ideal_counts["Threshold"] / weeks, 2),
+        "VO2": round(ideal_counts["VO2"] / weeks, 2),
+        "Long run": round(ideal_counts["Long run"] / weeks, 2),
     }
-
-    if "threshold" in headline:
-        targets["Threshold"] = 1.0
-        targets["VO2"] = 0.25
-    elif "volume" in headline or "aerobic" in headline:
-        targets["Threshold"] = 0.75
-        targets["VO2"] = 0.0
-    elif "intensity" in headline or "vo2" in headline or "rebalance" in headline:
-        targets["Threshold"] = 0.75
-        targets["VO2"] = 0.0
-
-    return targets
