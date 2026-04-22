@@ -21,9 +21,6 @@ except Exception:
     CLASSIFIER_AVAILABLE = False
 
 
-# -------------------------------
-# Helpers
-# -------------------------------
 def parse_mmss_to_seconds(time_str: str):
     try:
         parts = time_str.strip().split(":")
@@ -47,9 +44,61 @@ def seconds_to_pace_str(seconds_per_km: float | None) -> str:
     return f"{minutes}:{seconds:02d}/km"
 
 
-# -------------------------------
-# Page config + styles
-# -------------------------------
+def dedupe_list(items: list[str], limit: int | None = None) -> list[str]:
+    cleaned: list[str] = []
+    seen: set[str] = set()
+
+    for item in items:
+        if item is None:
+            continue
+        text = str(item).strip()
+        if not text:
+            continue
+        if text in seen:
+            continue
+        seen.add(text)
+        cleaned.append(text)
+
+    if limit is not None:
+        return cleaned[:limit]
+    return cleaned
+
+
+def safe_get(report: dict, key: str, default):
+    value = report.get(key, default)
+    return default if value is None else value
+
+
+def render_info_card(label: str, value: str):
+    st.markdown(
+        dedent(
+            f"""
+            <div class="mini-card">
+                <div class="mini-label">{label}</div>
+                <div class="mini-value">{value}</div>
+            </div>
+            """
+        ),
+        unsafe_allow_html=True,
+    )
+
+
+def render_action_steps(steps: list[str], timeframe: str):
+    st.markdown("<div class='action-card'>", unsafe_allow_html=True)
+
+    for step in steps[:4]:
+        st.markdown(
+            f"<div class='action-step'>{step}</div>",
+            unsafe_allow_html=True,
+        )
+
+    st.markdown(
+        f"<div class='support-note'><strong>Suggested timeframe:</strong> {timeframe}</div>",
+        unsafe_allow_html=True,
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
 st.set_page_config(page_title="RunLab Prototype", page_icon="🏃", layout="wide")
 
 st.markdown(
@@ -57,24 +106,24 @@ st.markdown(
         """
         <style>
         .block-container {
-            padding-top: 2.0rem;
-            padding-bottom: 1.2rem;
+            padding-top: 1.7rem;
+            padding-bottom: 1.4rem;
             padding-left: 1.5rem;
             padding-right: 1.5rem;
-            max-width: 1100px;
+            max-width: 1120px;
+        }
+
+        h2 {
+            margin-top: 0.6rem;
+            margin-bottom: 0.7rem;
         }
 
         [data-testid="stMetricValue"] {
-            font-size: 1.9rem;
+            font-size: 1.8rem;
         }
 
         [data-testid="stMetricLabel"] {
-            font-size: 0.9rem;
-        }
-
-        .small-muted {
-            color: #6b7280;
-            font-size: 0.92rem;
+            font-size: 0.88rem;
         }
 
         .scenario-label {
@@ -94,51 +143,52 @@ st.markdown(
         .report-card {
             background-color: #f9fafb;
             border: 1px solid #e5e7eb;
-            border-radius: 10px;
-            padding: 1rem 1rem 0.85rem 1rem;
+            border-radius: 12px;
+            padding: 1rem 1rem 0.9rem 1rem;
             margin-bottom: 1rem;
         }
 
         .hero-card,
-        .focus-box,
-        .ai-box,
-        .signal-card,
-        .mini-card {
-            border-radius: 12px;
+        .section-card,
+        .action-card,
+        .mini-card,
+        .metric-shell {
+            border-radius: 14px;
+            border: 1px solid #e5e7eb;
+            background: #ffffff;
+        }
+
+        .hero-card,
+        .section-card,
+        .mini-card,
+        .metric-shell {
             padding: 1rem;
             margin-bottom: 1rem;
-            border: 1px solid #e5e7eb;
         }
 
         .hero-card {
             background: #f9fafb;
+            padding: 1.1rem 1.1rem 1rem 1.1rem;
         }
 
-        .signal-card,
-        .mini-card {
-            background: #ffffff;
-        }
-
-        .focus-box {
+        .action-card {
             background: #ecfdf5;
             border-color: #a7f3d0;
-        }
-
-        .ai-box {
-            background: #eff6ff;
-            border-color: #bfdbfe;
+            padding: 0.8rem;
+            margin-bottom: 1rem;
         }
 
         .hero-kicker {
-            font-size: 0.82rem;
+            font-size: 0.8rem;
             text-transform: uppercase;
-            letter-spacing: 0.04em;
+            letter-spacing: 0.05em;
             color: #6b7280;
             margin-bottom: 0.35rem;
+            font-weight: 700;
         }
 
         .hero-headline {
-            font-size: 1.35rem;
+            font-size: 1.45rem;
             font-weight: 700;
             line-height: 1.25;
             color: #111827;
@@ -146,30 +196,17 @@ st.markdown(
         }
 
         .hero-summary {
-            font-size: 0.98rem;
+            font-size: 1rem;
             color: #374151;
-            margin-bottom: 0.9rem;
+            margin-bottom: 0;
+            line-height: 1.5;
         }
 
-        .impact-note {
-            font-size: 0.92rem;
-            color: #374151;
-            background: #f3f4f6;
-            border-radius: 10px;
-            padding: 0.75rem 0.9rem;
-            margin-top: 0.8rem;
-        }
-
-        .signal-title {
+        .section-title {
             font-size: 1rem;
             font-weight: 700;
             color: #111827;
-            margin-bottom: 0.35rem;
-        }
-
-        .signal-detail {
-            color: #374151;
-            font-size: 0.95rem;
+            margin-bottom: 0.6rem;
         }
 
         .mini-label {
@@ -183,15 +220,57 @@ st.markdown(
 
         .mini-value {
             color: #111827;
-            font-size: 0.96rem;
+            font-size: 0.98rem;
             font-weight: 600;
             line-height: 1.35;
         }
 
-        .balance-note {
+        .action-step {
+            background: rgba(255,255,255,0.92);
+            border: 1px solid rgba(167,243,208,0.95);
+            border-radius: 11px;
+            padding: 0.82rem 0.9rem;
+            margin-bottom: 0.6rem;
+            color: #1f2937;
+            font-size: 0.96rem;
+            line-height: 1.45;
+        }
+
+        .action-step:last-child {
+            margin-bottom: 0;
+        }
+
+        .why-box {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 11px;
+            padding: 0.85rem 0.95rem;
+            margin-bottom: 0.65rem;
+            color: #374151;
+            font-size: 0.95rem;
+            line-height: 1.45;
+        }
+
+        .support-note {
+            font-size: 0.92rem;
+            color: #4b5563;
+            background: #f3f4f6;
+            border-radius: 10px;
+            padding: 0.75rem 0.9rem;
+            margin-top: 0.25rem;
+        }
+
+        .chart-note {
             color: #4b5563;
             font-size: 0.92rem;
-            margin-top: 0.5rem;
+            margin-top: 0.45rem;
+        }
+
+        .subtle-caption {
+            color: #6b7280;
+            font-size: 0.9rem;
+            margin-top: -0.2rem;
+            margin-bottom: 0.8rem;
         }
         </style>
         """
@@ -199,10 +278,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-
-# -------------------------------
-# Demo data config
-# -------------------------------
 file_map = {
     "Baseline runner (mixed stimulus)": "data/sample_runs.csv",
     "Near-optimal but plateauing": "data/near_optimal_but_plateauing.csv",
@@ -226,10 +301,6 @@ APP_MODES = ["Try demo scenarios", "Upload your own data"]
 VALID_BETA_CODES = {"RUNLAB-BETA1"}
 BETA_SIGNUP_URL = "https://runlab.ai/#beta"
 
-
-# -------------------------------
-# Sidebar
-# -------------------------------
 with st.sidebar:
     st.header("Data input")
     uploaded_file = st.file_uploader("Upload running data (CSV)", type=["csv"])
@@ -298,24 +369,17 @@ with st.sidebar:
         st.dataframe(pace_df, hide_index=True, use_container_width=True)
         st.caption("Very fast and VO2 scale from 5K pace. Threshold scales from HM pace. Steady and easy scale from marathon pace.")
     elif current_5k_time and not CLASSIFIER_AVAILABLE:
-        st.caption("Classifier module not available. Save the updated classifier inside src to show scalable pace bands.")
+        st.caption("Classifier module not available.")
     elif current_5k_time:
         st.caption("Enter times as mm:ss or h:mm:ss, for example 17:40 or 1:19:00.")
 
-    if enable_auto_classification and not CLASSIFIER_AVAILABLE:
-        st.warning("Classifier module not available. Save runlab_classifier_v1.py inside src to use this feature.")
-
-
-# -------------------------------
-# Session state defaults
-# -------------------------------
-sample_option = st.session_state.get("sample_option", "Baseline runner (mixed stimulus)")
+sample_option = st.session_state.get("sample_option", sample_options[0])
 if sample_option not in sample_options:
-    sample_option = "Baseline runner (mixed stimulus)"
+    sample_option = sample_options[0]
 
-app_mode = st.session_state.get("app_mode", "Try demo scenarios")
+app_mode = st.session_state.get("app_mode", APP_MODES[0])
 if app_mode not in APP_MODES:
-    app_mode = "Try demo scenarios"
+    app_mode = APP_MODES[0]
 
 invite_code = st.session_state.get("invite_code", "").strip()
 beta_access_granted = invite_code in VALID_BETA_CODES
@@ -324,17 +388,13 @@ auto_classified_df = None
 auto_classification_error = None
 df_raw = None
 
-
-# -------------------------------
-# Header + mode card
-# -------------------------------
 st.title("RunLab Prototype")
 st.caption("Structured training analysis with an AI-assisted coaching explanation layer")
 
 st.markdown(
     """
-RunLab analyses recent training, identifies the main limiter, and highlights the most important next focus,
-with an AI-assisted coaching summary layered on top of the rule-based engine.
+RunLab analyses recent training, identifies the main limiter, and highlights the clearest next focus,
+while keeping the deeper supporting analysis available below.
 """
 )
 
@@ -415,10 +475,6 @@ else:
             except Exception as exc:
                 auto_classification_error = str(exc)
 
-
-# -------------------------------
-# Guard rails
-# -------------------------------
 if df_raw is None and selected_mode == "Try demo scenarios":
     st.info("Choose a demo scenario to begin.")
     st.stop()
@@ -436,49 +492,38 @@ if selected_mode == "Upload your own data" and enable_auto_classification:
     elif auto_classified_df is not None:
         st.success("Auto-classification applied to uploaded data.")
 
-
-# -------------------------------
-# Core report generation
-# -------------------------------
 try:
     report = generate_runlab_report(df_raw)
 except Exception as exc:
     st.error(f"Data or report error: {exc}")
     st.stop()
 
-df = report["df"]
-metrics = report["metrics"]
-top_signals = report["top_signals"]
-focus = report["focus"]
-ai_text = report["ai_text"]
-used_ai = report["used_ai"]
-decision = report["decision"]
+df = safe_get(report, "df", pd.DataFrame())
+metrics = safe_get(report, "metrics", {})
+signals = safe_get(report, "signals", [])
+top_signals = safe_get(report, "top_signals", signals[:3] if signals else [])
+focus = safe_get(report, "focus", {})
+ai_text = safe_get(report, "ai_text", "")
+used_ai = safe_get(report, "used_ai", False)
 
 hierarchy = report.get("hierarchy")
 if hierarchy is None:
     hierarchy = build_training_hierarchy(metrics, focus)
 
-
-# -------------------------------
-# Top metrics
-# -------------------------------
-metric_row = st.columns(4)
-metric_row[0].metric("28-day distance", f"{metrics['total_distance_last_28']} km")
-metric_row[1].metric("Run days (28d)", metrics["days_with_run_last_28"])
-metric_row[2].metric("Consistency", metrics["consistency_label"].title())
-metric_row[3].metric("Volume trend", metrics["volume_trend"].title())
-
-st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-
-
-# -------------------------------
-# Hero section
-# -------------------------------
-st.markdown("## Your Current Focus")
-
 diagnosis_headline, diagnosis_summary = build_focus_diagnosis(focus, metrics)
-why_bullets = build_why_this_matters(metrics, top_signals)
 
+why_bullets = dedupe_list(build_why_this_matters(metrics, top_signals, focus), limit=2)
+balance_df, total_run_days = build_balance_comparison_df(df, focus)
+balance_note = build_balance_interpretation(balance_df, focus, total_run_days)
+
+weekly_structure = build_weekly_structure(metrics)
+target_structure = get_target_weekly_structure(focus, total_run_days)
+
+weekly_chart = build_weekly_distance_chart(df)
+balance_chart = plot_training_balance_with_counts(balance_df)
+
+# 1. Verdict
+st.markdown("## Your current focus")
 st.markdown(
     dedent(
         f"""
@@ -492,326 +537,169 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-hero_col_1, hero_col_2, hero_col_3 = st.columns(3)
-
-with hero_col_1:
-    st.markdown(
-        dedent(
-            f"""
-            <div class="mini-card">
-                <div class="mini-label">Primary focus</div>
-                <div class="mini-value">{decision['primary_focus']}</div>
-            </div>
-            """
-        ),
-        unsafe_allow_html=True,
-    )
-
-with hero_col_2:
-    st.markdown(
-        dedent(
-            f"""
-            <div class="mini-card">
-                <div class="mini-label">Secondary</div>
-                <div class="mini-value">{decision['secondary_focus']}</div>
-            </div>
-            """
-        ),
-        unsafe_allow_html=True,
-    )
-
-with hero_col_3:
-    st.markdown(
-        dedent(
-            f"""
-            <div class="mini-card">
-                <div class="mini-label">Maintain / Avoid</div>
-                <div class="mini-value">Maintain: {decision['maintain']}<br>Avoid: {decision['avoid']}</div>
-            </div>
-            """
-        ),
-        unsafe_allow_html=True,
-    )
-
-st.markdown(
-    dedent(
-        """
-        <div class="impact-note">
-            <strong>If unchanged:</strong> progress is likely to remain limited.<br>
-            <strong>If addressed:</strong> this should give the training pattern a clearer platform for improvement.
-        </div>
-        """
-    ),
-    unsafe_allow_html=True,
-)
-
-st.caption(
-    f"Based on the last {metrics.get('weeks_of_data', 'N/A')} weeks of training. "
-    f"Progression confidence: {str(metrics.get('progression_confidence', 'Unknown')).title()}."
-)
-
-st.divider()
-
-
-# -------------------------------
-# Why this matters
-# -------------------------------
-st.markdown("## Why this matters")
-for idx, bullet in enumerate(why_bullets, start=1):
-    st.markdown(
-        dedent(
-            f"""
-            <div class="signal-card">
-                <div class="signal-title">Signal {idx}</div>
-                <div class="signal-detail">{bullet}</div>
-            </div>
-            """
-        ),
-        unsafe_allow_html=True,
-    )
-
-st.divider()
-
-
-# -------------------------------
-# What to do next
-# -------------------------------
+# 2. Actions
 st.markdown("## What to do next")
-st.markdown(
-    dedent(
-        f"""
-        <div class="focus-box">
-            <div style="font-size: 1.1rem; font-weight: 700; color: #065f46; margin-bottom: 0.5rem;">Recommended next focus</div>
-            <div style="color: #111827; margin-bottom: 0.5rem; font-weight: 600;">{focus['headline']}</div>
-            <div style="color: #374151; margin-bottom: 0.85rem;">{focus['detail']}</div>
-            <div style="font-size: 0.9rem; color: #374151;"><strong>Expected impact:</strong> noticeable within {focus.get('timeframe', 'N/A')} if applied consistently</div>
-        </div>
-        """
-    ),
-    unsafe_allow_html=True,
+render_action_steps(
+    focus.get("prescription", ["Keep the current pattern stable and reassess after another consistent block."]),
+    focus.get("timeframe", "2-4 weeks"),
 )
 
-if focus.get("prescription"):
-    for step in focus["prescription"]:
-        st.markdown(f"- {step}")
+# 3. Evidence + fact panel
+st.markdown("## Why")
+st.markdown("<div class='subtle-caption'>The key evidence behind the recommendation.</div>", unsafe_allow_html=True)
 
-if focus.get("supporting_signals"):
-    st.caption("Driven by: " + ", ".join(focus["supporting_signals"]))
+why_col_1, why_col_2 = st.columns([1.25, 0.75])
 
-st.divider()
+with why_col_1:
+    st.markdown("<div class='section-card'>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title'>Key reasons</div>", unsafe_allow_html=True)
 
-
-# -------------------------------
-# AI explanation
-# -------------------------------
-st.markdown("## What this means")
-st.markdown(
-    dedent(
-        f"""
-        <div class="ai-box">
-            <div style="font-size: 1.05rem; font-weight: 700; color: #1d4ed8; margin-bottom: 0.5rem;">What this means</div>
-            <div style="font-size: 0.88rem; color: #6b7280; margin-bottom: 0.75rem;">{'OpenAI active' if used_ai else 'Fallback mode'}</div>
-            <div style="font-size: 0.88rem; color: #6b7280; margin-bottom: 0.75rem;">AI-assisted explanation of the rule-based recommendation</div>
-            <div style="color: #111827;">{ai_text}</div>
-        </div>
-        """
-    ),
-    unsafe_allow_html=True,
-)
-
-st.divider()
-
-
-# -------------------------------
-# Training overview
-# -------------------------------
-st.markdown("## Training overview")
-fig_overview = build_weekly_distance_chart(df)
-st.pyplot(fig_overview, use_container_width=True)
-
-st.divider()
-
-
-# -------------------------------
-# Supporting metrics
-# -------------------------------
-st.markdown("## Supporting metrics")
-metric_row_2 = st.columns(4)
-metric_row_2[0].metric("Threshold / week", metrics.get("threshold_sessions_per_week", "N/A"))
-metric_row_2[1].metric("Quality ratio", f"{int(metrics.get('quality_run_pct', 0) * 100)}%")
-metric_row_2[2].metric("Weeks of data", metrics.get("weeks_of_data", "N/A"))
-metric_row_2[3].metric("Progression confidence", str(metrics.get("progression_confidence", "Unknown")).title())
-
-st.markdown(
-    f"<div class='small-muted'><strong>Volume pattern:</strong> {str(metrics['volume_pattern']).replace('_', ' ').title()} — {metrics['volume_pattern_detail']}</div>",
-    unsafe_allow_html=True,
-)
-
-
-st.markdown("### Weekly structure")
-
-balance_df, total_run_days = build_balance_comparison_df(df, focus)
-
-current_struct = build_weekly_structure(metrics)
-target_struct = get_target_weekly_structure(focus, total_run_days)
-
-current_quality = round(current_struct["Threshold"] + current_struct["VO2"], 2)
-target_quality = round(target_struct["Threshold"] + target_struct["VO2"], 2)
-quality_delta = round(current_quality - target_quality, 2)
-
-ws_col_1, ws_col_2, ws_col_3, ws_col_4 = st.columns(4)
-
-structure_cards = [
-    ("Threshold", current_struct["Threshold"], target_struct["Threshold"], ws_col_1),
-    ("VO2", current_struct["VO2"], target_struct["VO2"], ws_col_2),
-    ("Long run", current_struct["Long run"], target_struct["Long run"], ws_col_3),
-]
-
-for label, current_val, target_val, col in structure_cards:
-    delta_val = round(current_val - target_val, 2)
-
-    if abs(delta_val) < 0.25:
-        delta_text = "On target"
+    if why_bullets:
+        for reason in why_bullets:
+            st.markdown(f"<div class='why-box'>{reason}</div>", unsafe_allow_html=True)
     else:
-        delta_text = f"{delta_val:+.2f} vs target"
+        st.write("No additional reasoning available.")
 
-    col.metric(
-        f"{label} / week",
-        f"{current_val:.2f}",
-        delta_text,
+    st.markdown("</div>", unsafe_allow_html=True)
+
+with why_col_2:
+    st.markdown("<div class='section-card'>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title'>At a glance</div>", unsafe_allow_html=True)
+
+    run_days_per_week = round((metrics.get("days_with_run_last_28", 0) or 0) / 4.0, 1)
+    recent_weekly_km = round(metrics.get("recent_avg_weekly_km", 0) or 0, 1)
+    target_volume_range = focus.get("target_volume_range")
+
+    render_info_card("Run frequency", f"{run_days_per_week} days/week")
+    render_info_card("Weekly volume", f"{recent_weekly_km} km/week")
+    if target_volume_range:
+        render_info_card("Target volume", f"{target_volume_range[0]}-{target_volume_range[1]} km/week")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+# 4. Summary metrics lower in the flow
+st.markdown("## Summary metrics")
+metrics_row = st.columns(4)
+metrics_row[0].metric("28-day distance", f"{metrics.get('total_distance_last_28', 0)} km")
+metrics_row[1].metric("Run days (28d)", metrics.get("days_with_run_last_28", 0))
+metrics_row[2].metric("Consistency", str(metrics.get("consistency_label", "unknown")).title())
+metrics_row[3].metric("Volume trend", str(metrics.get("volume_trend", "unknown")).title())
+
+# 5. Visual validation
+st.markdown("## Training pattern")
+
+chart_col_1, chart_col_2 = st.columns(2)
+
+with chart_col_1:
+    st.markdown("<div class='section-card'>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title'>Weekly distance</div>", unsafe_allow_html=True)
+    st.pyplot(weekly_chart, use_container_width=True)
+    st.markdown(
+        "<div class='chart-note'>Weekly volume over the last few weeks.</div>",
+        unsafe_allow_html=True,
     )
+    st.markdown("</div>", unsafe_allow_html=True)
 
-if abs(quality_delta) < 0.25:
-    quality_delta_text = "On target"
-else:
-    quality_delta_text = f"{quality_delta:+.2f} vs target"
-
-ws_col_4.metric(
-    "Quality sessions / week",
-    f"{current_quality:.2f}",
-    quality_delta_text,
-)
-
-st.caption(
-    "Targets reflect the current training balance recommendation. "
-    "For a 5K/10K runner, this usually means keeping quality controlled and letting easy running do most of the support work."
-)
-
-quality_message = (
-    f"Current pattern: {current_quality:.2f} quality sessions/week "
-    f"(threshold + VO2) versus a recommended {target_quality:.2f}/week."
-)
-
-if quality_delta > 0.25:
-    quality_message += (
-        " The issue here is not that VO2 is inherently wrong, but that the combined density of hard running is higher than the current target."
+with chart_col_2:
+    st.markdown("<div class='section-card'>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title'>Current vs ideal training mix</div>", unsafe_allow_html=True)
+    st.pyplot(balance_chart, use_container_width=True)
+    st.markdown(
+        "<div class='chart-note'>Current run-day mix compared with the current target distribution.</div>",
+        unsafe_allow_html=True,
     )
-elif quality_delta < -0.25:
-    quality_message += (
-        " The current structure may be a little too light on quality relative to the target."
-    )
-else:
-    quality_message += (
-        " The overall quality density is close to the current target."
-    )
+    st.markdown("</div>", unsafe_allow_html=True)
 
-st.markdown(
-    f"<div class='balance-note'>{quality_message}</div>",
-    unsafe_allow_html=True,
-)
+# 6. Optional nuance
+st.markdown("## Coaching interpretation")
+with st.expander("Show AI-assisted explanation", expanded=False):
+    if used_ai:
+        st.caption("Generated using the AI explanation layer")
+    else:
+        st.caption("Using fallback explanation because no OpenAI key was available")
+    st.write(ai_text)
 
-st.caption(
-    "Note: individual session types may both appear elevated, but the key signal here is the combined quality load."
-)
+# 7. Deep dive
+st.markdown("## Deep dive")
 
-if quality_delta > 0.50:
-    verdict = "Intensity overloaded"
-    verdict_detail = "Too much hard running relative to the current training mix."
-elif quality_delta < -0.50:
-    verdict = "Under-stimulated"
-    verdict_detail = "The current pattern may be slightly too light on quality relative to the target."
-else:
-    verdict = "Balanced"
-    verdict_detail = "Overall quality density is close to the current target."
+with st.expander("Training hierarchy", expanded=False):
+    primary = hierarchy.get("primary", {})
+    secondary = hierarchy.get("secondary", [])
+    supportive = hierarchy.get("supportive", [])
 
-st.markdown(
-    f"""
-    <div class="mini-card">
-        <div class="mini-label">Training load status</div>
-        <div class="mini-value">{verdict}</div>
-        <div class="small-muted">{verdict_detail}</div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+    st.markdown("**Primary**")
+    st.write(primary.get("label", "N/A"))
+    if primary.get("detail"):
+        st.caption(primary.get("detail"))
 
-st.markdown("### Training balance")
-
-balance_chart_df = balance_df.copy()
-balance_chart_df["ideal_pct"] = balance_chart_df["Ideal days"].apply(
-    lambda x: round((x / total_run_days) * 100, 1) if total_run_days else 0.0
-)
-
-fig_balance = plot_training_balance_with_counts(balance_chart_df)
-st.pyplot(fig_balance, use_container_width=True)
-
-display_df = balance_df.copy()
-display_df["Ideal %"] = balance_chart_df["ideal_pct"].map(lambda x: f"{x:.1f}%")
-display_df["Current %"] = display_df["Current %"].map(lambda x: f"{x:.1f}%")
-display_df["Gap"] = display_df["Gap"].map(lambda x: f"{x:+}")
-st.dataframe(display_df, hide_index=True, use_container_width=True)
-
-st.markdown(
-    f"<div class='balance-note'>{build_balance_interpretation(balance_df, focus, total_run_days)}</div>",
-    unsafe_allow_html=True,
-)
-
-st.caption("The current mix is based on distinct run days, not raw session count. The ideal mix is a heuristic target based on the current recommendation.")
-
-st.divider()
-
-
-# -------------------------------
-# Expanders
-# -------------------------------
-with st.expander("View training hierarchy", expanded=False):
-    st.markdown(f"**Primary**: {hierarchy['primary']['label']}")
-    st.write(hierarchy["primary"]["detail"])
-
-    if hierarchy["secondary"]:
+    if secondary:
         st.markdown("**Secondary constraints**")
-        for item in hierarchy["secondary"]:
-            st.markdown(f"- **{item['label']}**: {item['detail']}")
+        for item in secondary:
+            st.markdown(f"- **{item.get('label', 'N/A')}**: {item.get('detail', '')}")
 
-    if hierarchy["supportive"]:
-        st.markdown("**Supportive stimuli**")
-        for item in hierarchy["supportive"]:
-            st.markdown(f"- **{item['label']}**: {item['detail']}")
+    if supportive:
+        st.markdown("**Supportive stimuli already in place**")
+        for item in supportive:
+            st.markdown(f"- **{item.get('label', 'N/A')}**: {item.get('detail', '')}")
 
-with st.expander("View detailed metrics", expanded=False):
-    metrics_df = pd.DataFrame([{"Metric": key, "Value": value} for key, value in metrics.items()])
+with st.expander("All system signals", expanded=False):
+    if not signals:
+        st.write("No signals available.")
+    else:
+        for signal in signals:
+            st.markdown(
+                f"- **{signal.get('title', 'Untitled')}** "
+                f"({signal.get('priority', 'unknown')}): {signal.get('detail', '')}"
+            )
+
+with st.expander("Weekly structure detail", expanded=False):
+    structure_df = pd.DataFrame(
+        {
+            "Stimulus": ["Threshold", "VO2", "Long run"],
+            "Current per week": [
+                weekly_structure.get("Threshold", 0.0),
+                weekly_structure.get("VO2", 0.0),
+                weekly_structure.get("Long run", 0.0),
+            ],
+            "Target per week": [
+                target_structure.get("Threshold", 0.0),
+                target_structure.get("VO2", 0.0),
+                target_structure.get("Long run", 0.0),
+            ],
+        }
+    )
+    st.dataframe(structure_df, hide_index=True, use_container_width=True)
+
+with st.expander("Training balance detail", expanded=False):
+    st.dataframe(balance_df, hide_index=True, use_container_width=True)
+    st.caption(balance_note)
+
+with st.expander("Key metrics", expanded=False):
+    metric_export = {
+        "Weeks of data": metrics.get("weeks_of_data"),
+        "Progression confidence": metrics.get("progression_confidence"),
+        "Run days in last 28 days": metrics.get("days_with_run_last_28"),
+        "Recent avg weekly km": metrics.get("recent_avg_weekly_km"),
+        "Prior avg weekly km": metrics.get("prior_avg_weekly_km"),
+        "Volume trend": metrics.get("volume_trend"),
+        "Volume pattern": metrics.get("volume_pattern"),
+        "Threshold sessions last 28": metrics.get("threshold_sessions_last_28"),
+        "VO2 sessions last 28": metrics.get("vo2_sessions_last_28"),
+        "Race sessions last 28": metrics.get("race_sessions_last_28"),
+        "Long runs last 28": metrics.get("long_runs_last_28"),
+        "Easy runs last 28": metrics.get("easy_runs_last_28"),
+        "Quality runs last 28": metrics.get("quality_runs_last_28"),
+        "Easy run %": metrics.get("easy_run_pct"),
+        "Quality run %": metrics.get("quality_run_pct"),
+        "Threshold trend": metrics.get("threshold_trend"),
+        "VO2 trend": metrics.get("vo2_trend", metrics.get("interval_trend")),
+        "Long run trend": metrics.get("long_run_trend"),
+    }
+
+    metrics_df = pd.DataFrame(
+        {"Metric": list(metric_export.keys()), "Value": list(metric_export.values())}
+    )
     st.dataframe(metrics_df, hide_index=True, use_container_width=True)
 
-if selected_mode == "Upload your own data" and auto_classified_df is not None:
-    with st.expander("View classified uploaded data", expanded=False):
-        preview_cols = [
-            col for col in [
-                "date",
-                "title",
-                "distance_km",
-                "duration_min",
-                "pace_min_per_km",
-                "workout_type",
-                "sub_type",
-                "pace_band",
-                "classification_notes",
-            ]
-            if col in auto_classified_df.columns
-        ]
-        if preview_cols:
-            st.dataframe(auto_classified_df[preview_cols], use_container_width=True)
-        else:
-            st.dataframe(auto_classified_df, use_container_width=True)
-
-with st.expander("View cleaned training data", expanded=False):
+with st.expander("Underlying cleaned data", expanded=False):
     st.dataframe(df, use_container_width=True)

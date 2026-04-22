@@ -1,5 +1,28 @@
-
 from __future__ import annotations
+
+
+def _format_km(value: float) -> str:
+    return str(int(round(float(value))))
+
+
+def recommend_volume_target(current_km: float) -> tuple[int, int]:
+    current_km = float(current_km or 0)
+
+    if current_km < 30:
+        return int(round(current_km + 10)), int(round(current_km + 20))
+    if current_km < 50:
+        return int(round(current_km + 10)), int(round(current_km + 15))
+    if current_km < 70:
+        return int(round(current_km + 5)), int(round(current_km + 10))
+    return int(round(current_km + 5)), int(round(current_km + 8))
+
+
+def recommend_run_days_target(current_run_days_per_week: float) -> int:
+    if current_run_days_per_week < 4:
+        return 5
+    if current_run_days_per_week < 5:
+        return 6
+    return 6
 
 
 def _default_focus() -> dict:
@@ -16,6 +39,8 @@ def _default_focus() -> dict:
             "Reassess after another block of consistent training",
         ],
         "timeframe": "2-4 weeks",
+        "target_volume_range": None,
+        "target_run_days_per_week": None,
     }
 
 
@@ -73,17 +98,17 @@ FOCUS_LIBRARY = {
         "timeframe": "3-4 weeks",
     },
     "Intensity imbalance": {
-        "headline": "Rebalance the training mix",
-        "detail": "The current pattern appears too intensity-heavy. More easy running may improve adaptation and reduce unnecessary fatigue.",
+        "headline": "Build a stronger base to support your current intensity",
+        "detail": "High-intensity work is present, but the supporting volume and consistency are not yet strong enough to make it as effective as it could be.",
         "priority": "high",
-        "reason": "Training balance is skewed toward quality sessions",
+        "reason": "Training intensity is under-supported by the current base",
         "prescription": [
-            "Reduce the density of hard sessions",
-            "Protect threshold support while cutting back on unnecessary VO2 load",
-            "Increase the proportion of easy running",
-            "Stabilise the weekly rhythm before progressing again",
+            "Increase weekly distance gradually through easy running",
+            "Add 1-2 additional easy run days if recovery allows",
+            "Keep 1 quality session per week, but avoid adding extra intensity",
+            "Introduce or stabilise a weekly long run",
         ],
-        "timeframe": "2-3 weeks",
+        "timeframe": "3-6 weeks",
     },
     "Declining volume": {
         "headline": "Stabilise training load",
@@ -164,8 +189,8 @@ FOCUS_LIBRARY = {
         "timeframe": "3-4 weeks",
     },
     "VO2-heavy relative to threshold": {
-        "headline": "Rebalance VO2 against threshold support",
-        "detail": "VO2 work is showing up more often than threshold work. The pattern may be leaning too hard toward top-end intensity without enough threshold support underneath.",
+        "headline": "Support VO2 work with a stronger aerobic and threshold base",
+        "detail": "VO2 work is showing up more often than threshold work. The issue is less about removing intensity altogether, and more about giving it better support underneath.",
         "priority": "medium",
         "reason": "VO2 sessions are outnumbering threshold sessions",
         "prescription": [
@@ -218,28 +243,93 @@ FOCUS_LIBRARY = {
 }
 
 
+def _build_volume_guidance(metrics: dict) -> tuple[str, tuple[int, int], int]:
+    current_km = float(metrics.get("recent_avg_weekly_km", 0) or 0)
+    current_run_days_per_week = float((metrics.get("days_with_run_last_28", 0) or 0) / 4.0)
+
+    low_target, high_target = recommend_volume_target(current_km)
+    target_run_days = recommend_run_days_target(current_run_days_per_week)
+
+    volume_line = (
+        f"Increase weekly volume from about {_format_km(current_km)} km to {low_target}-{high_target} km"
+    )
+    return volume_line, (low_target, high_target), target_run_days
+
+
+def _augment_focus(base_focus: dict, metrics: dict) -> dict:
+    focus = dict(base_focus)
+    volume_line, volume_range, target_run_days = _build_volume_guidance(metrics)
+    headline_lower = str(focus.get("headline", "")).lower()
+
+    current_km = float(metrics.get("recent_avg_weekly_km", 0) or 0)
+    current_run_days_per_week = round(float((metrics.get("days_with_run_last_28", 0) or 0) / 4.0), 1)
+
+    focus["target_volume_range"] = volume_range
+    focus["target_run_days_per_week"] = target_run_days
+
+    if (
+        "base to support your current intensity" in headline_lower
+        or "support vo2 work with a stronger aerobic and threshold base" in headline_lower
+    ):
+        focus["detail"] = (
+            f"You are already doing some higher-intensity work, but the supporting base looks too thin at the moment. "
+            f"Recent volume is about {_format_km(current_km)} km per week across roughly {current_run_days_per_week} run days, "
+            f"so the immediate goal is to make the harder work better supported rather than simply adding more of it."
+        )
+        focus["prescription"] = [
+            volume_line,
+            f"Build toward {target_run_days} run days per week, mainly through easy running",
+            "Keep 1 quality session per week, but avoid adding extra VO2 load for now",
+            "Introduce or stabilise a weekly long run",
+        ]
+        focus["timeframe"] = "3-6 weeks"
+
+    elif "build aerobic volume" in headline_lower:
+        focus["prescription"] = [
+            volume_line,
+            f"Build toward {target_run_days} run days per week if recovery allows",
+            "Use easy running to build volume rather than adding extra intensity",
+            "Keep the weekly structure repeatable and controlled",
+        ]
+
+    elif "progress volume carefully" in headline_lower:
+        focus["prescription"] = [
+            volume_line,
+            f"Build toward {target_run_days} run days per week if practical",
+            "Avoid progressing both volume and intensity at the same time",
+            "Reassess after a stable block",
+        ]
+
+    elif "increase weekly run frequency" in headline_lower or "tighten training consistency" in headline_lower:
+        focus["prescription"] = [
+            f"Build toward {target_run_days} run days per week",
+            volume_line,
+            "Keep most added running easy",
+            "Avoid adding more intensity until the weekly rhythm is stable",
+        ]
+
+    elif "stabilise training load" in headline_lower:
+        focus["prescription"] = [
+            "Re-establish a repeatable weekly pattern",
+            volume_line,
+            f"Build toward {target_run_days} run days per week if recovery allows",
+            "Let volume stabilise before progressing harder sessions again",
+        ]
+
+    return focus
+
+
 def determine_focus(metrics: dict, signals: list[dict]) -> dict:
     if not signals:
-        return _default_focus()
+        return _augment_focus(_default_focus(), metrics)
 
     for priority in ["high", "medium", "low"]:
-        priority_signals = [s for s in signals if s["priority"] == priority]
-
+        priority_signals = [s for s in signals if s.get("priority") == priority]
         for signal in priority_signals:
-            signal_title = signal["title"]
-
+            signal_title = signal.get("title", "")
             if signal_title in FOCUS_LIBRARY:
-                focus_template = FOCUS_LIBRARY[signal_title]
-                supporting = [s["title"] for s in priority_signals if s["title"] != signal_title]
+                selected = dict(FOCUS_LIBRARY[signal_title])
+                selected["supporting_signals"] = [s.get("title", "") for s in priority_signals[:3] if s.get("title")]
+                return _augment_focus(selected, metrics)
 
-                return {
-                    "headline": focus_template["headline"],
-                    "detail": focus_template["detail"],
-                    "priority": focus_template["priority"],
-                    "reason": focus_template["reason"],
-                    "supporting_signals": supporting,
-                    "prescription": focus_template["prescription"],
-                    "timeframe": focus_template["timeframe"],
-                }
-
-    return _default_focus()
+    return _augment_focus(_default_focus(), metrics)

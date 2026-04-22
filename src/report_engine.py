@@ -12,7 +12,6 @@ from src.signals import derive_signals
 
 
 def build_training_hierarchy(metrics: dict[str, Any], focus: dict[str, Any]) -> dict[str, Any]:
-    """Create a simple primary / secondary / supportive hierarchy for UI display."""
     primary = {
         "label": focus.get("headline", "Primary limiter"),
         "detail": focus.get("detail", ""),
@@ -27,12 +26,7 @@ def build_training_hierarchy(metrics: dict[str, Any], focus: dict[str, Any]) -> 
     consistency_label = str(metrics.get("consistency_label", "unknown") or "unknown")
 
     if threshold_count == 0:
-        secondary.append(
-            {
-                "label": "Threshold work",
-                "detail": "Absent in the last 4 weeks.",
-            }
-        )
+        secondary.append({"label": "Threshold work", "detail": "Absent in the last 4 weeks."})
     elif threshold_count <= 2:
         secondary.append(
             {
@@ -49,12 +43,7 @@ def build_training_hierarchy(metrics: dict[str, Any], focus: dict[str, Any]) -> 
         )
 
     if long_run_count == 0:
-        secondary.append(
-            {
-                "label": "Long run stimulus",
-                "detail": "Absent in the last 4 weeks.",
-            }
-        )
+        secondary.append({"label": "Long run stimulus", "detail": "Absent in the last 4 weeks."})
     elif long_run_count <= 2:
         secondary.append(
             {
@@ -95,15 +84,22 @@ def build_training_hierarchy(metrics: dict[str, Any], focus: dict[str, Any]) -> 
 
 
 def build_top_signals(signals: list[dict[str, Any]], limit: int = 3) -> list[dict[str, Any]]:
-    """Return the most important signals for compact UI display."""
     return signals[:limit] if signals else []
 
 
 def build_summary_line(metrics: dict[str, Any], focus: dict[str, Any]) -> str:
-    """Create a short one-line summary for the hero section."""
-    focus_text = str(focus.get("headline", "Maintain consistency and progress gradually"))
     consistency = str(metrics.get("consistency_label", "unknown")).replace("_", " ")
-    weekly_km = metrics.get("recent_avg_weekly_km", 0)
+    weekly_km = int(round(float(metrics.get("recent_avg_weekly_km", 0) or 0)))
+    target_volume_range = focus.get("target_volume_range")
+
+    if target_volume_range:
+        return (
+            f"The current pattern suggests that the harder work is under-supported, "
+            f"with {consistency} consistency, around {weekly_km} km per week recently, "
+            f"and a better short-term target of roughly {target_volume_range[0]}-{target_volume_range[1]} km."
+        )
+
+    focus_text = str(focus.get("headline", "Maintain consistency and progress gradually"))
     return (
         f"Current pattern suggests {focus_text.lower()}, "
         f"with {consistency} consistency and around {weekly_km} km per week recently."
@@ -111,7 +107,6 @@ def build_summary_line(metrics: dict[str, Any], focus: dict[str, Any]) -> str:
 
 
 def build_reasoning(metrics: dict[str, Any], signals: list[dict[str, Any]], limit: int = 4) -> list[str]:
-    """Turn top signals into UI-friendly reasoning bullets."""
     if signals:
         return [str(signal.get("detail", "")) for signal in signals[:limit] if signal.get("detail")]
 
@@ -124,14 +119,30 @@ def build_reasoning(metrics: dict[str, Any], signals: list[dict[str, Any]], limi
     return fallback_reasons[:limit]
 
 
-def generate_runlab_report(df_raw: pd.DataFrame) -> dict[str, Any]:
-    """
-    Run the core RunLab pipeline.
+def build_decision(metrics: dict[str, Any], focus: dict[str, Any], top_signals: list[dict[str, Any]], hierarchy: dict[str, Any]) -> dict[str, str]:
+    target_volume_range = focus.get("target_volume_range")
+    primary_focus = focus.get("headline", "Maintain consistency and progress gradually")
 
-    This is intentionally UI-agnostic so Streamlit becomes a thin display layer.
-    Input: raw uploaded or demo dataframe.
-    Output: structured report dict for cards, charts, explanation and downloads.
-    """
+    if target_volume_range:
+        secondary_focus = f"Move weekly volume toward {target_volume_range[0]}-{target_volume_range[1]} km"
+    elif len(top_signals) > 1:
+        secondary_focus = top_signals[1].get("title", "Keep core structure stable")
+    else:
+        secondary_focus = "Keep core structure stable"
+
+    maintain = hierarchy["supportive"][0]["label"] if hierarchy.get("supportive") else "Current healthy elements"
+
+    avoid = "Adding more intensity" if "support" in primary_focus.lower() or "vo2" in primary_focus.lower() else "Changing multiple levers at once"
+
+    return {
+        "primary_focus": primary_focus,
+        "secondary_focus": secondary_focus,
+        "maintain": maintain,
+        "avoid": avoid,
+    }
+
+
+def generate_runlab_report(df_raw: pd.DataFrame) -> dict[str, Any]:
     df = clean_data(df_raw)
     weekly = weekly_summary(df)
     metrics = overall_metrics(df, weekly)
@@ -153,10 +164,5 @@ def generate_runlab_report(df_raw: pd.DataFrame) -> dict[str, Any]:
         "hierarchy": hierarchy,
         "summary_line": build_summary_line(metrics, focus),
         "reasoning": build_reasoning(metrics, signals),
-        "decision": {
-            "primary_focus": focus.get("headline", "Maintain consistency and progress gradually"),
-            "secondary_focus": top_signals[1]["title"] if len(top_signals) > 1 else "Keep core structure stable",
-            "maintain": hierarchy["supportive"][0]["label"] if hierarchy["supportive"] else "Current healthy elements",
-            "avoid": "Adding more intensity" if focus.get("reason") == "Training balance is skewed toward quality sessions" else "Changing multiple levers at once",
-        },
+        "decision": build_decision(metrics, focus, top_signals, hierarchy),
     }

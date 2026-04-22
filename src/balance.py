@@ -5,10 +5,6 @@ SESSION_ORDER = ["Easy", "Threshold", "VO2", "Long run"]
 
 
 def allocate_targets_from_weights(total_run_days: int, weights: dict[str, float]) -> dict[str, int]:
-    """
-    Convert weight proportions into integer target run days that sum exactly
-    to total_run_days.
-    """
     if total_run_days <= 0:
         return {session: 0 for session in SESSION_ORDER}
 
@@ -31,13 +27,8 @@ def allocate_targets_from_weights(total_run_days: int, weights: dict[str, float]
 
 
 def build_ideal_targets(focus: dict, total_run_days: int) -> dict[str, int]:
-    """
-    Build ideal targets scaled to the runner's actual number of distinct run days.
-    The weights are tuned for a 5K/10K style runner for now.
-    """
     headline = focus.get("headline", "").lower()
 
-    # Default 5K/10K style balance
     weights = {
         "Easy": 0.70,
         "Threshold": 0.15,
@@ -66,7 +57,7 @@ def build_ideal_targets(focus: dict, total_run_days: int) -> dict[str, int]:
             "VO2": 0.05,
             "Long run": 0.20,
         }
-    elif "intensity" in headline or "vo2" in headline or "rebalance" in headline or "recovery" in headline:
+    elif "support your current intensity" in headline or "support vo2 work" in headline:
         weights = {
             "Easy": 0.75,
             "Threshold": 0.10,
@@ -83,9 +74,11 @@ def build_ideal_targets(focus: dict, total_run_days: int) -> dict[str, int]:
 
     targets = allocate_targets_from_weights(total_run_days, weights)
 
-    # Sensible safeguards
     if total_run_days >= 5 and (
-        "intensity" in headline or "vo2" in headline or "rebalance" in headline
+        "support your current intensity" in headline
+        or "support vo2 work" in headline
+        or "intensity" in headline
+        or "vo2" in headline
     ):
         targets["VO2"] = max(1, targets["VO2"])
         total_assigned = sum(targets.values())
@@ -96,11 +89,6 @@ def build_ideal_targets(focus: dict, total_run_days: int) -> dict[str, int]:
 
 
 def build_balance_comparison_df(df: pd.DataFrame, focus: dict) -> tuple[pd.DataFrame, int]:
-    """
-    Build training balance from distinct run days, not raw session counts.
-    Each day is assigned its dominant stimulus:
-    Long run > VO2/race > Threshold > Easy
-    """
     if df.empty or "date" not in df.columns or "workout_type" not in df.columns:
         empty_total = 0
         empty_targets = build_ideal_targets(focus, empty_total)
@@ -178,6 +166,7 @@ def build_balance_interpretation(balance_df: pd.DataFrame, focus: dict, total_ru
         return "No training balance insight available."
 
     headline = focus.get("headline", "").lower()
+    target_volume_range = focus.get("target_volume_range")
 
     def gap_text(label: str) -> str:
         current_days = int(balance_df.loc[balance_df["Session type"] == label, "Current days"].iloc[0])
@@ -199,9 +188,12 @@ def build_balance_interpretation(balance_df: pd.DataFrame, focus: dict, total_ru
         )
 
     if "volume" in headline or "aerobic" in headline:
+        extra = ""
+        if target_volume_range:
+            extra = f" The short-term volume target is roughly {target_volume_range[0]}-{target_volume_range[1]} km per week."
         return prefix + (
             f"The pattern supports a more aerobic approach. "
-            f"{gap_text('Easy')} and {gap_text('VO2')}."
+            f"{gap_text('Easy')} and {gap_text('VO2')}.{extra}"
         )
 
     if "threshold" in headline:
@@ -216,10 +208,14 @@ def build_balance_interpretation(balance_df: pd.DataFrame, focus: dict, total_ru
             f"{gap_text('Long run')}."
         )
 
-    if "rebalance" in headline or "intensity" in headline or "recovery" in headline or "vo2" in headline:
+    if "support your current intensity" in headline or "support vo2 work" in headline:
+        extra = ""
+        if target_volume_range:
+            extra = f" A sensible next volume range would be around {target_volume_range[0]}-{target_volume_range[1]} km per week."
         return prefix + (
-            f"The current pattern looks too intensity-heavy. "
-            f"{gap_text('VO2')} and {gap_text('Easy')}."
+            f"The current intensity is not the main problem on its own. "
+            f"{gap_text('VO2')} and {gap_text('Easy')}. "
+            f"The bigger opportunity is to give the harder work better aerobic support through more easy running and a more stable weekly structure.{extra}"
         )
 
     return prefix + (
