@@ -2,312 +2,365 @@ from __future__ import annotations
 
 from typing import Any
 
-PRIORITY_SCORE = {"high": 3, "medium": 2, "low": 1}
 
 FOCUS_RULES: dict[str, dict[str, Any]] = {
     "consistency": {
-        "headline": "Increase weekly run frequency",
+        "headline": "Build a repeatable running rhythm first",
         "limiter": "Consistency",
-        "detail": "The training rhythm is not yet repeatable enough to support reliable progression.",
+        "detail": "Training frequency is the strongest limiter. The next block should make running more regular before adding more load or intensity.",
         "timeframe": "2-3 weeks",
-        "prescription": [
-            "Run more frequently before adding extra intensity",
-            "Use short easy runs to close large gaps between training days",
-            "Aim for a repeatable weekly rhythm first",
-            "Review the pattern after 2-3 consistent weeks",
-        ],
     },
     "volume": {
-        "headline": "Build aerobic volume",
+        "headline": "Build aerobic volume before adding more intensity",
         "limiter": "Aerobic volume",
-        "detail": "Weekly volume is the clearest limiter, so the next block should be built around more easy aerobic running.",
+        "detail": "Weekly volume is the clearest limiter. The next block should add easy aerobic running so harder sessions have more support.",
         "timeframe": "3-4 weeks",
-        "prescription": [
-            "Increase weekly distance gradually through easy running",
-            "Keep quality controlled while volume catches up",
-            "Protect one regular long run each week",
-            "Avoid progressing volume and intensity at the same time",
-        ],
     },
-    "volume_trend": {
-        "headline": "Stabilise training load",
+    "aerobic_support": {
+        "headline": "Support your quality work with more easy volume",
+        "limiter": "Aerobic support",
+        "detail": "Harder running is present, but the easy volume underneath it is not strong enough yet. The next block should make the hard work better supported, not harder.",
+        "timeframe": "3-6 weeks",
+    },
+    "load_stability": {
+        "headline": "Stabilise your training load",
         "limiter": "Training load stability",
-        "detail": "Recent volume has dipped or become unstable, so the priority is to rebuild a sustainable rhythm.",
+        "detail": "Recent volume has dipped or become too variable. The next block should rebuild a predictable week before pushing fitness harder.",
         "timeframe": "2-3 weeks",
-        "prescription": [
-            "Re-establish a repeatable weekly pattern",
-            "Bring volume back gradually rather than forcing a sharp jump",
-            "Keep hard sessions controlled while load stabilises",
-            "Use consistency as the success measure for this block",
-        ],
     },
     "long_run": {
-        "headline": "Rebuild long run stimulus",
+        "headline": "Make the long run a weekly anchor",
         "limiter": "Long run stimulus",
-        "detail": "The endurance support is too light or inconsistent, which limits durability and aerobic development.",
+        "detail": "The endurance support is missing or inconsistent. A regular long run will improve durability and make the rest of the week work better.",
         "timeframe": "3-4 weeks",
-        "prescription": [
-            "Schedule one comfortable long run each week",
-            "Build the long run gradually rather than jumping distance",
-            "Keep the long run aerobic and controlled",
-            "Stabilise this before adding more hard work",
-        ],
     },
     "threshold": {
-        "headline": "Strengthen threshold support",
-        "limiter": "Threshold stimulus",
-        "detail": "Threshold work is missing or too irregular to strongly support sustained pace development.",
+        "headline": "Add a controlled threshold stimulus",
+        "limiter": "Threshold support",
+        "detail": "Threshold work is missing or too irregular. A repeatable threshold session will improve sustained pace without the fatigue cost of extra VO2 work.",
         "timeframe": "3-4 weeks",
-        "prescription": [
-            "Add one repeatable threshold session each week",
-            "Use controlled efforts rather than maximal sessions",
-            "Keep easy running around the session genuinely easy",
-            "Hold this pattern for several weeks before progressing it",
-        ],
-    },
-    "balance": {
-        "headline": "Support quality with a stronger aerobic base",
-        "limiter": "Training balance",
-        "detail": "The harder work is present, but the supporting easy volume and structure are not strong enough yet.",
-        "timeframe": "3-6 weeks",
-        "prescription": [
-            "Keep one quality session each week but avoid adding more intensity",
-            "Add easy volume around the quality work if recovery allows",
-            "Make the long run a stable part of the week",
-            "Use the next block to make hard sessions better supported",
-        ],
     },
     "quality": {
-        "headline": "Add a clearer quality stimulus",
+        "headline": "Add one clear quality stimulus",
         "limiter": "Quality stimulus",
-        "detail": "The base is present, but the training week needs one clearer dose of threshold or VO2 work.",
+        "detail": "The base is present, but the week needs one purposeful faster session to create a clearer performance signal.",
         "timeframe": "3-4 weeks",
-        "prescription": [
-            "Introduce one controlled quality session each week",
-            "Start with threshold before adding more aggressive VO2 work",
-            "Keep the rest of the week easy and repeatable",
-            "Review after 3-4 weeks before adding a second quality day",
-        ],
     },
     "progression": {
-        "headline": "Create a clearer progression signal",
+        "headline": "Create one clear progression signal",
         "limiter": "Progression",
-        "detail": "The pattern is broadly sound, but too many key levers are static.",
+        "detail": "The pattern is broadly sound, but too many levers are static. The next block should progress one lever only.",
         "timeframe": "2-4 weeks",
-        "prescription": [
-            "Choose one lever to progress in the next block",
-            "Keep the rest of the week stable while that change beds in",
-            "Prefer a small sustainable increase over a sharp jump",
-            "Reassess once the new stimulus has had time to show up",
-        ],
     },
     "maintenance": {
-        "headline": "Maintain consistency and progress gradually",
+        "headline": "Maintain the current rhythm and progress carefully",
         "limiter": "No major limiter",
-        "detail": "The current pattern is broadly healthy, so the best next step is controlled progression rather than a major change.",
+        "detail": "The pattern is broadly healthy. The next step is controlled progression rather than a major correction.",
         "timeframe": "2-4 weeks",
-        "prescription": [
-            "Keep the current weekly rhythm stable",
-            "Progress only one training lever at a time",
-            "Protect recovery around harder sessions",
-            "Reassess after another consistent block",
-        ],
     },
 }
 
-PRIMARY_RULE_ORDER = [
+PRIMARY_ORDER = [
     "consistency",
-    "volume_trend",
+    "aerobic_support",
     "volume",
-    "balance",
+    "load_stability",
     "long_run",
     "threshold",
     "quality",
     "progression",
+    "maintenance",
 ]
 
-RULE_ID_TO_FOCUS_KEY = {
+
+SIGNAL_TO_DOMAIN = {
     "consistency": "consistency",
     "volume": "volume",
-    "volume_trend": "volume_trend",
-    "volume_pattern": "volume_trend",
+    "volume_trend": "load_stability",
+    "volume_pattern": "load_stability",
     "long_run": "long_run",
     "threshold": "threshold",
-    "balance": "balance",
+    "balance": "aerobic_support",
     "progression": "progression",
 }
 
 
-def recommend_volume_target(current_km: float) -> tuple[int, int]:
-    current_km = float(current_km or 0)
-    if current_km < 30:
-        return int(round(current_km + 10)), int(round(current_km + 20))
-    if current_km < 50:
-        return int(round(current_km + 10)), int(round(current_km + 15))
-    if current_km < 70:
-        return int(round(current_km + 5)), int(round(current_km + 10))
-    return int(round(current_km + 5)), int(round(current_km + 8))
+def _num(value: Any, default: float = 0.0) -> float:
+    try:
+        if value is None:
+            return default
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 
-def recommend_run_days_target(current_run_days_per_week: float) -> int:
-    if current_run_days_per_week < 4:
-        return 5
-    if current_run_days_per_week < 5:
-        return 6
-    return 6
+def _int(value: Any, default: int = 0) -> int:
+    return int(round(_num(value, default)))
 
 
 def _format_km(value: float) -> str:
     return str(int(round(float(value or 0))))
 
 
-def _signal_score(signal: dict[str, Any]) -> int:
-    return PRIORITY_SCORE.get(str(signal.get("priority", "low")).lower(), 1)
+def recommend_volume_target(current_km: float) -> tuple[int, int]:
+    current_km = float(current_km or 0)
+    if current_km < 30:
+        return max(20, int(round(current_km + 8))), int(round(current_km + 15))
+    if current_km < 50:
+        return int(round(current_km + 8)), int(round(current_km + 12))
+    if current_km < 70:
+        return int(round(current_km + 5)), int(round(current_km + 8))
+    return int(round(current_km + 3)), int(round(current_km + 6))
 
 
-def _best_signal_by_focus(signals: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    grouped: dict[str, dict[str, Any]] = {}
-    for signal in signals:
-        focus_key = RULE_ID_TO_FOCUS_KEY.get(str(signal.get("rule_id", "")))
-        if not focus_key:
-            continue
-        if focus_key not in grouped or _signal_score(signal) > _signal_score(grouped[focus_key]):
-            grouped[focus_key] = signal
-    return grouped
+def recommend_run_days_target(current_run_days_per_week: float) -> int:
+    if current_run_days_per_week < 4:
+        return 5
+    if current_run_days_per_week < 5.5:
+        return 6
+    return int(round(current_run_days_per_week))
 
 
-def _quality_absent(metrics: dict[str, Any]) -> bool:
-    return int(metrics.get("quality_runs_last_28", 0) or 0) == 0
+def build_limiter_scores(metrics: dict[str, Any]) -> dict[str, int]:
+    """
+    Score each limiter from 0-100 where a higher score means a stronger limiter.
+    This keeps the decision engine deterministic and explainable.
+    """
+    run_days = _num(metrics.get("days_with_run_last_28")) / 4.0
+    weekly_km = _num(metrics.get("recent_avg_weekly_km"))
+    threshold_sessions = _int(metrics.get("threshold_sessions_last_28"))
+    vo2_sessions = _int(metrics.get("vo2_sessions_last_28")) + _int(metrics.get("race_sessions_last_28"))
+    quality_sessions = threshold_sessions + vo2_sessions
+    long_runs = _int(metrics.get("long_runs_last_28"))
+    quality_pct = _num(metrics.get("quality_run_pct"))
+    easy_pct = _num(metrics.get("easy_run_pct"))
+    volume_trend = str(metrics.get("volume_trend", "flat")).lower()
+    volume_pattern = str(metrics.get("volume_pattern", "plateau")).lower()
 
-
-def _choose_primary_key(metrics: dict[str, Any], signals: list[dict[str, Any]]) -> str:
-    grouped = _best_signal_by_focus(signals)
-
-    if grouped.get("consistency") and _signal_score(grouped["consistency"]) >= 3:
-        return "consistency"
-
-    if grouped.get("volume_trend") and _signal_score(grouped["volume_trend"]) >= 3:
-        return "volume_trend"
-
-    recent_km = float(metrics.get("recent_avg_weekly_km", 0) or 0)
-    quality_pct = float(metrics.get("quality_run_pct", 0) or 0)
-    easy_pct = float(metrics.get("easy_run_pct", 0) or 0)
-
-    if quality_pct > 0.40 and easy_pct < 0.70:
-        return "balance"
-
-    if recent_km < 50:
-        return "volume"
-
-    if int(metrics.get("long_runs_last_28", 0) or 0) == 0:
-        return "long_run"
-
-    if int(metrics.get("threshold_sessions_last_28", 0) or 0) == 0:
-        return "threshold"
-
-    if recent_km < 70 and grouped.get("volume") and _signal_score(grouped["volume"]) >= 2:
-        return "volume"
-
-    if _quality_absent(metrics):
-        return "quality"
-
-    for key in PRIMARY_RULE_ORDER:
-        signal = grouped.get(key)
-        if signal and _signal_score(signal) >= 2:
-            return key
-
-    return "maintenance"
-
-
-def _choose_secondary_key(primary_key: str, metrics: dict[str, Any], signals: list[dict[str, Any]]) -> str | None:
-    grouped = _best_signal_by_focus(signals)
-    candidates = [key for key in PRIMARY_RULE_ORDER if key != primary_key]
-
-    # Avoid diluting the decision. Secondary focus should support the primary, not compete with it.
-    if primary_key in {"consistency", "volume_trend"}:
-        allowed = {"volume", "long_run"}
-    elif primary_key == "volume":
-        allowed = {"long_run", "threshold"}
-    elif primary_key == "balance":
-        allowed = {"volume", "long_run", "threshold"}
-    elif primary_key == "long_run":
-        allowed = {"volume", "threshold"}
-    elif primary_key == "threshold":
-        allowed = {"volume", "long_run"}
+    consistency = 0
+    if run_days < 3:
+        consistency = 95
+    elif run_days < 4:
+        consistency = 82
+    elif run_days < 5:
+        consistency = 60
+    elif run_days < 6:
+        consistency = 35
     else:
-        allowed = set(candidates)
+        consistency = 10
 
-    ranked = []
-    for key in candidates:
-        if key not in allowed:
-            continue
-        signal = grouped.get(key)
-        if not signal:
-            continue
-        score = _signal_score(signal)
-        if score >= 2:
-            ranked.append((score, -PRIMARY_RULE_ORDER.index(key), key))
+    volume = 0
+    if weekly_km < 30:
+        volume = 92
+    elif weekly_km < 50:
+        volume = 78
+    elif weekly_km < 70:
+        volume = 50
+    elif weekly_km < 90:
+        volume = 25
+    else:
+        volume = 10
 
-    if not ranked:
-        return None
+    long_run = 90 if long_runs == 0 else 55 if long_runs <= 2 else 18
+    threshold = 85 if threshold_sessions == 0 else 55 if threshold_sessions <= 2 else 15
 
-    ranked.sort(reverse=True)
-    return ranked[0][2]
+    quality = 80 if quality_sessions == 0 else 30 if quality_sessions <= 2 else 10
 
+    intensity_balance = 0
+    if quality_pct >= 0.40 and easy_pct < 0.70:
+        intensity_balance = 90
+    elif quality_pct >= 0.30 and weekly_km < 60:
+        intensity_balance = 75
+    elif vo2_sessions > threshold_sessions + 1 and weekly_km < 70:
+        intensity_balance = 65
+    else:
+        intensity_balance = 20
 
-def _target_fields(primary_key: str, metrics: dict[str, Any]) -> dict[str, Any]:
-    current_km = float(metrics.get("recent_avg_weekly_km", 0) or 0)
-    run_days = float(metrics.get("days_with_run_last_28", 0) or 0) / 4.0
-    volume_range = recommend_volume_target(current_km)
-    run_days_target = recommend_run_days_target(run_days)
+    load_stability = 20
+    if volume_trend == "declining":
+        load_stability = 80
+    elif volume_pattern in {"volatile", "peaked_then_dipped"}:
+        load_stability = 65
+    elif volume_trend == "flat":
+        load_stability = 45
 
-    target_fields: dict[str, Any] = {
-        "target_volume_range": None,
-        "target_run_days_per_week": None,
+    progression = 55 if str(metrics.get("volume_pattern", "")).lower() == "plateau" and weekly_km >= 60 and quality_sessions >= 3 else 20
+
+    return {
+        "consistency": int(consistency),
+        "volume": int(volume),
+        "aerobic_support": int(max(intensity_balance, min(volume, 70) if quality_sessions >= 2 and weekly_km < 60 else 0)),
+        "load_stability": int(load_stability),
+        "long_run": int(long_run),
+        "threshold": int(threshold),
+        "quality": int(quality),
+        "progression": int(progression),
     }
 
-    if primary_key in {"consistency", "volume", "balance", "long_run", "threshold"}:
-        target_fields["target_volume_range"] = volume_range
-    if primary_key in {"consistency", "volume", "balance"}:
-        target_fields["target_run_days_per_week"] = run_days_target
 
-    return target_fields
+def choose_primary_limiter(metrics: dict[str, Any], scores: dict[str, int]) -> str:
+    run_days = _num(metrics.get("days_with_run_last_28")) / 4.0
+    weekly_km = _num(metrics.get("recent_avg_weekly_km"))
+    quality_pct = _num(metrics.get("quality_run_pct"))
+    easy_pct = _num(metrics.get("easy_run_pct"))
+    quality_sessions = _int(metrics.get("quality_runs_last_28"))
+    long_runs = _int(metrics.get("long_runs_last_28"))
+    threshold_sessions = _int(metrics.get("threshold_sessions_last_28"))
+    volume_trend = str(metrics.get("volume_trend", "flat")).lower()
+
+    # Hard override rules. These prevent diluted or conflicting recommendations.
+    if run_days < 4:
+        return "consistency"
+    if quality_pct >= 0.35 and easy_pct < 0.70 and weekly_km < 70:
+        return "aerobic_support"
+    if weekly_km < 50:
+        return "volume"
+    if volume_trend == "declining" and weekly_km >= 50:
+        return "load_stability"
+    if long_runs == 0:
+        return "long_run"
+    if threshold_sessions == 0 and quality_sessions <= 2:
+        return "threshold"
+    if quality_sessions == 0 and weekly_km >= 50:
+        return "quality"
+
+    ranked = sorted(scores.items(), key=lambda item: (-item[1], PRIMARY_ORDER.index(item[0]) if item[0] in PRIMARY_ORDER else 99))
+    primary, score = ranked[0]
+    return primary if score >= 55 else "maintenance"
 
 
-def _augment_prescription(focus: dict[str, Any], primary_key: str, metrics: dict[str, Any]) -> list[str]:
-    steps = list(focus.get("prescription", []))
-    current_km = float(metrics.get("recent_avg_weekly_km", 0) or 0)
-    volume_range = focus.get("target_volume_range")
-    run_days_target = focus.get("target_run_days_per_week")
+def choose_secondary_limiter(primary: str, scores: dict[str, int]) -> str | None:
+    allowed_by_primary = {
+        "consistency": {"volume", "long_run"},
+        "volume": {"long_run", "threshold"},
+        "aerobic_support": {"volume", "long_run", "threshold"},
+        "load_stability": {"volume", "long_run"},
+        "long_run": {"volume", "threshold"},
+        "threshold": {"volume", "long_run"},
+        "quality": {"long_run", "volume"},
+        "progression": {"volume", "threshold", "long_run"},
+        "maintenance": set(),
+    }
+    allowed = allowed_by_primary.get(primary, set())
+    candidates = [(key, value) for key, value in scores.items() if key in allowed and key != primary and value >= 55]
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: (-item[1], PRIMARY_ORDER.index(item[0]) if item[0] in PRIMARY_ORDER else 99))
+    return candidates[0][0]
 
-    if volume_range and primary_key in {"volume", "balance", "consistency"}:
-        steps.insert(0, f"Move from about {_format_km(current_km)} km toward {volume_range[0]}-{volume_range[1]} km per week")
-    if run_days_target and primary_key == "consistency":
-        steps.insert(0, f"Build toward {run_days_target} run days per week")
 
-    cleaned: list[str] = []
-    seen: set[str] = set()
-    for step in steps:
-        text = str(step).strip()
-        if text and text not in seen:
-            cleaned.append(text)
-            seen.add(text)
-    return cleaned[:4]
+def build_next_week_plan(metrics: dict[str, Any], primary: str, secondary: str | None = None) -> dict[str, Any]:
+    current_km = _num(metrics.get("recent_avg_weekly_km"))
+    current_run_days = _num(metrics.get("days_with_run_last_28")) / 4.0
+    current_quality = _num(metrics.get("quality_runs_last_28")) / 4.0
+    current_long_runs = _num(metrics.get("long_runs_last_28")) / 4.0
+
+    target_km = recommend_volume_target(current_km)
+    target_days = recommend_run_days_target(current_run_days)
+
+    if primary == "consistency":
+        target_km = (int(round(current_km)), int(round(current_km + 5))) if current_km >= 30 else recommend_volume_target(current_km)
+        quality_target = 0 if current_run_days < 3 else 1
+    elif primary in {"volume", "aerobic_support"}:
+        quality_target = 1
+    elif primary == "threshold":
+        quality_target = 1
+    elif primary == "quality":
+        quality_target = 1
+    elif primary == "long_run":
+        quality_target = max(1, int(round(current_quality))) if current_quality > 0 else 1
+    else:
+        quality_target = max(1, min(2, int(round(current_quality)) or 1))
+
+    if primary == "aerobic_support":
+        quality_target = 1
+    if primary == "load_stability":
+        target_km = (max(0, int(round(current_km * 0.95))), int(round(current_km * 1.05)))
+        quality_target = max(1, min(2, int(round(current_quality)) or 1))
+
+    long_run_target = "weekly" if primary in {"volume", "aerobic_support", "long_run", "threshold"} or current_long_runs < 0.75 else "maintain"
+
+    plan = {
+        "run_days": target_days,
+        "target_km_range": target_km,
+        "quality_sessions": quality_target,
+        "long_run": long_run_target,
+        "easy_volume": "increase" if primary in {"volume", "aerobic_support", "consistency"} else "maintain",
+        "avoid": "adding another hard session" if primary in {"volume", "aerobic_support", "consistency"} else "changing several levers at once",
+    }
+    return plan
+
+
+def build_prescription(metrics: dict[str, Any], focus: dict[str, Any]) -> list[str]:
+    plan = focus["next_week_plan"]
+    km_low, km_high = plan["target_km_range"]
+    primary = focus.get("primary_key")
+
+    steps = [
+        f"Run {plan['run_days']} days if recovery allows",
+        f"Aim for {km_low}-{km_high} km, mostly easy",
+        f"Keep quality to {plan['quality_sessions']} controlled session{'s' if plan['quality_sessions'] != 1 else ''}",
+    ]
+
+    if plan["long_run"] == "weekly":
+        steps.append("Include one comfortable long run")
+    else:
+        steps.append("Keep the long run stable rather than extending it aggressively")
+
+    if primary == "threshold":
+        steps[2] = "Make the quality session threshold-based rather than all-out VO2"
+    elif primary == "quality":
+        steps[2] = "Add one purposeful threshold or VO2 session"
+    elif primary == "consistency":
+        steps[1] = f"Keep volume controlled at around {km_low}-{km_high} km while frequency improves"
+    elif primary == "aerobic_support":
+        steps[2] = "Keep one quality session, but do not add another hard day yet"
+
+    return steps[:4]
+
+
+def build_decision_confidence(metrics: dict[str, Any], scores: dict[str, int], primary: str, secondary: str | None) -> tuple[str, str, int]:
+    weeks = _int(metrics.get("weeks_of_data"))
+    primary_score = scores.get(primary, 0)
+    second_score = scores.get(secondary, 0) if secondary else 0
+    separation = primary_score - second_score
+    data_score = 20 if weeks >= 6 else 12 if weeks >= 4 else 6
+    score = min(100, max(0, primary_score + data_score + max(0, separation // 2) - 20))
+
+    if score >= 75:
+        return "High confidence", "The main limiter is clear and supported by enough recent training data.", score
+    if score >= 55:
+        return "Medium confidence", "This is the clearest next focus, but it should be reviewed after another short block.", score
+    return "Lower confidence", "The pattern is either broadly healthy or the data is limited, so treat this as a gentle nudge.", score
 
 
 def determine_focus(metrics: dict[str, Any], signals: list[dict[str, Any]]) -> dict[str, Any]:
-    primary_key = _choose_primary_key(metrics, signals)
-    secondary_key = _choose_secondary_key(primary_key, metrics, signals)
+    scores = build_limiter_scores(metrics)
+    primary = choose_primary_limiter(metrics, scores)
+    secondary = choose_secondary_limiter(primary, scores)
+    template = FOCUS_RULES[primary]
 
-    template = FOCUS_RULES[primary_key]
     focus = dict(template)
-    focus["primary_key"] = primary_key
-    focus["secondary_key"] = secondary_key
+    focus["primary_key"] = primary
+    focus["secondary_key"] = secondary
     focus["primary_limiter"] = template["limiter"]
-    focus["secondary_focus"] = FOCUS_RULES[secondary_key]["headline"] if secondary_key else None
-    focus["priority"] = "low" if primary_key == "maintenance" else "high" if primary_key in {"consistency", "volume", "balance", "volume_trend"} else "medium"
+    focus["secondary_focus"] = FOCUS_RULES[secondary]["headline"] if secondary else None
+    focus["priority"] = "low" if primary == "maintenance" else "high" if scores.get(primary, 0) >= 75 else "medium"
     focus["reason"] = template["detail"]
-    focus["supporting_signals"] = [s for s in signals if RULE_ID_TO_FOCUS_KEY.get(str(s.get("rule_id", ""))) in {primary_key, secondary_key}]
-    focus.update(_target_fields(primary_key, metrics))
-    focus["prescription"] = _augment_prescription(focus, primary_key, metrics)
+    focus["decision_scores"] = scores
+    focus["target_volume_range"] = recommend_volume_target(_num(metrics.get("recent_avg_weekly_km"))) if primary in {"volume", "aerobic_support", "consistency", "long_run", "threshold"} else None
+    focus["target_run_days_per_week"] = recommend_run_days_target(_num(metrics.get("days_with_run_last_28")) / 4.0) if primary in {"consistency", "volume", "aerobic_support"} else None
+    focus["next_week_plan"] = build_next_week_plan(metrics, primary, secondary)
+    focus["prescription"] = build_prescription(metrics, focus)
+
+    confidence_label, confidence_note, confidence_score = build_decision_confidence(metrics, scores, primary, secondary)
+    focus["confidence_label"] = confidence_label
+    focus["confidence_note"] = confidence_note
+    focus["confidence_score"] = confidence_score
+
+    relevant = {primary, secondary}
+    focus["supporting_signals"] = [
+        signal for signal in signals
+        if SIGNAL_TO_DOMAIN.get(str(signal.get("rule_id", ""))) in relevant
+    ]
     return focus

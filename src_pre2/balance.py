@@ -62,7 +62,7 @@ def target_weights_for_focus(focus: dict[str, Any]) -> dict[str, float]:
         return {"Easy": 0.78, "Quality": 0.10, "Long run": 0.12}
     if primary_key == "volume":
         return {"Easy": 0.72, "Quality": 0.12, "Long run": 0.16}
-    if primary_key == "aerobic_support":
+    if primary_key == "balance":
         return {"Easy": 0.76, "Quality": 0.10, "Long run": 0.14}
     if primary_key == "long_run":
         return {"Easy": 0.68, "Quality": 0.12, "Long run": 0.20}
@@ -172,7 +172,7 @@ def build_balance_interpretation(balance_df: pd.DataFrame, focus: dict[str, Any]
 
     prefix = f"Based on {total_run_days} distinct run days in the last 4 weeks, "
 
-    if primary_key == "aerobic_support":
+    if primary_key == "balance":
         return prefix + (
             f"quality appears heavy relative to the support underneath. The next block should move closer to "
             f"{easy_ideal} easy days, {quality_ideal} quality day(s), and {long_ideal} long run day(s)."
