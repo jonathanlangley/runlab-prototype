@@ -1,150 +1,90 @@
 from __future__ import annotations
 
+from typing import Any
+
 
 def _format_km(value: float) -> str:
     return str(int(round(float(value or 0))))
 
 
-def build_focus_diagnosis(focus: dict, metrics: dict) -> tuple[str, str]:
-    headline = focus.get("headline", "")
-    detail = focus.get("detail", "")
-
-    run_days_per_week = round((metrics.get("days_with_run_last_28", 0) or 0) / 4.0, 1)
-    recent_km = round(metrics.get("recent_avg_weekly_km", 0) or 0, 1)
-    long_runs_last_28 = int(metrics.get("long_runs_last_28", 0) or 0)
+def build_focus_diagnosis(focus: dict[str, Any], metrics: dict[str, Any]) -> tuple[str, str]:
+    headline = focus.get("headline", "Your current training pattern has a clear next focus")
+    primary_key = str(focus.get("primary_key", ""))
+    run_days = round((metrics.get("days_with_run_last_28", 0) or 0) / 4.0, 1)
+    recent_km = round(float(metrics.get("recent_avg_weekly_km", 0) or 0), 1)
     target_volume_range = focus.get("target_volume_range")
-    target_run_days = focus.get("target_run_days_per_week")
+    target_days = focus.get("target_run_days_per_week")
 
-    headline_lower = str(headline).lower()
+    if primary_key == "consistency":
+        target = f"{target_days} days per week" if target_days else "5-6 days per week"
+        return "Your main limiter is training frequency", f"You are currently running about {run_days} days per week. The clearest next step is to build toward {target} before adding more intensity."
 
-    # Frequency / consistency limiter
-    if "frequency" in headline_lower or "consistency" in headline_lower:
-        title = "Your current frequency is limiting progression"
-        summary = (
-            f"You are currently running about {run_days_per_week} days per week. "
-            f"For stronger progression, this likely needs to move closer to {target_run_days or 5}-6 consistent runs."
-        )
-        return title, summary
+    if primary_key == "volume":
+        target = f" A sensible next range is {target_volume_range[0]}-{target_volume_range[1]} km per week." if target_volume_range else ""
+        return "Your main limiter is aerobic volume", f"Your recent average is about {recent_km} km per week. That is likely limiting aerobic development and reducing the return from harder sessions.{target}"
 
-    # Volume / aerobic limiter
-    if "volume" in headline_lower or "aerobic" in headline_lower:
-        target_text = ""
-        if target_volume_range:
-            target_text = f" A sensible next range would be around {target_volume_range[0]}-{target_volume_range[1]} km per week."
+    if primary_key == "balance":
+        target = f" Aim to move toward {target_volume_range[0]}-{target_volume_range[1]} km per week mainly through easy running." if target_volume_range else ""
+        return "Your harder sessions need more support", f"The issue is not simply needing more speed work. At about {recent_km} km per week and {run_days} run days, the quality work needs a stronger easy-running base underneath it.{target}"
 
-        title = "Your current volume is limiting aerobic development"
-        summary = (
-            f"Your recent weekly average is about {recent_km} km. "
-            f"That is likely limiting aerobic development and reducing the impact of harder sessions.{target_text}"
-        )
-        return title, summary
+    if primary_key == "long_run":
+        return "Your endurance support is underdeveloped", "The long run is missing or too inconsistent, which limits durability and makes quality sessions harder to absorb."
 
-    # Threshold limiter
-    if "threshold" in headline_lower:
-        title = "Threshold support is currently underdeveloped"
-        summary = (
-            "Threshold work appears under-supported at the moment, which is likely limiting sustained pace development."
-        )
-        return title, summary
+    if primary_key == "threshold":
+        return "Threshold support is underdeveloped", "Threshold work is missing or too irregular, which can limit your ability to sustain fast but controlled paces."
 
-    # Long run / endurance limiter
-    if "long run" in headline_lower or "endurance" in headline_lower:
-        title = "Your endurance support is currently underdeveloped"
-        if long_runs_last_28 == 0:
-            summary = (
-                "No long runs were detected in the last 28 days, which is likely limiting durability and endurance progression."
-            )
-        else:
-            summary = (
-                "The long run stimulus is present but too inconsistent to fully support durability and endurance progression."
-            )
-        return title, summary
+    if primary_key == "quality":
+        return "You need a clearer quality stimulus", "The base is present, but the week needs one more purposeful threshold or VO2 stimulus to move performance forward."
 
-    # Intensity support limiter
-    if "support your current intensity" in headline_lower or "support vo2 work" in headline_lower:
-        target_text = ""
-        if target_volume_range:
-            target_text = (
-                f" The priority is to move weekly volume from about {_format_km(recent_km)} km "
-                f"toward {target_volume_range[0]}-{target_volume_range[1]} km."
-            )
+    if primary_key == "volume_trend":
+        return "Your training load needs stabilising", "Recent volume has dipped or become unstable. The immediate job is to rebuild a repeatable week before pushing harder."
 
-        title = "Your harder sessions are not yet well supported by the current base"
-        summary = (
-            f"You are already doing some useful quality work, but at about {recent_km} km per week "
-            f"and {run_days_per_week} run days per week, the supporting base looks too thin for that work to be fully effective.{target_text}"
-        )
-        return title, summary
-
-    # Default fallback
-    return headline or "Your current training pattern has a clear next focus", detail
+    return headline, focus.get("detail", "Keep the pattern stable and progress gradually.")
 
 
-def build_why_this_matters(metrics: dict, top_signals: list[dict], focus: dict | None = None) -> list[str]:
-    bullets: list[str] = []
+def build_why_this_matters(metrics: dict[str, Any], top_signals: list[dict[str, Any]], focus: dict[str, Any] | None = None) -> list[str]:
+    primary_key = str((focus or {}).get("primary_key", ""))
 
-    recent_km = round(metrics.get("recent_avg_weekly_km", 0) or 0, 1)
-    long_runs_last_28 = int(metrics.get("long_runs_last_28", 0) or 0)
+    if primary_key in {"volume", "balance"}:
+        return [
+            "For 5K performance, aerobic volume is not just marathon-style background work. It improves how much pace you can sustain before fatigue bites.",
+            "More easy volume also lowers the relative cost of threshold and VO2 sessions, so the hard work becomes more productive rather than just more tiring.",
+        ]
 
-    target_volume_range = focus.get("target_volume_range") if focus else None
-    headline_lower = str(focus.get("headline", "")).lower() if focus else ""
+    if primary_key == "consistency":
+        return [
+            "Adaptation comes from repeated stimulus. More regular run days create a stronger training signal than occasional bigger sessions.",
+            "Once frequency is stable, volume and quality become easier to progress without overloading single days.",
+        ]
 
-    # --- INTENSITY SUPPORT CASE ---
-    if "support your current intensity" in headline_lower or "support vo2 work" in headline_lower:
+    if primary_key == "threshold":
+        return [
+            "Threshold work raises the speed you can hold without tipping into heavy fatigue, which is central to converting fitness into race pace.",
+            "For a 5K runner, threshold is the bridge between easy volume and VO2 work. It makes top-end sessions more sustainable.",
+        ]
 
-        bullets.append(
-            "The current structure includes some quality work, but overall support is not strong enough for that work to translate into consistent progression."
-        )
+    if primary_key == "long_run":
+        return [
+            "A regular long run builds durability, capillary development, and fatigue resistance, even for shorter races.",
+            "It gives the rest of the week more aerobic support, so faster work is absorbed rather than simply survived.",
+        ]
 
-        if long_runs_last_28 == 0:
-            bullets.append(
-                "There is no consistent long run in the pattern, so endurance and durability are not being developed."
-            )
-        elif long_runs_last_28 < 3:
-            bullets.append(
-                "The long run is inconsistent, which limits durability and reduces your ability to sustain pace over time."
-            )
-        else:
-            bullets.append(
-                "The long run is present, but the overall structure still needs more support to make the quality work fully effective."
-            )
+    if primary_key == "quality":
+        return [
+            "Once consistency and volume are in place, performance still needs a clear faster stimulus.",
+            "A controlled weekly quality session gives the body a reason to adapt without turning the whole week into a recovery problem.",
+        ]
 
-        return bullets[:2]
+    if top_signals:
+        return [str(s.get("detail", "")).strip() for s in top_signals[:2] if str(s.get("detail", "")).strip()]
 
-    # --- VOLUME / AEROBIC CASE (UPDATED - NO METRIC DUPLICATION) ---
-    if "volume" in headline_lower or "aerobic" in headline_lower:
+    return ["The current pattern is broadly healthy, so the best improvement is small, controlled progression."]
 
-        bullets.append(
-            "The current weekly volume is not high enough to support consistent aerobic adaptation, which limits how much benefit you get from harder sessions."
-        )
 
-        if long_runs_last_28 == 0:
-            bullets.append(
-                "There is no consistent long run in the pattern, so endurance and durability are not being developed."
-            )
-        elif long_runs_last_28 < 3:
-            bullets.append(
-                "The long run is inconsistent, which limits durability and reduces your ability to sustain pace over time."
-            )
-        else:
-            bullets.append(
-                "The long run is present, but the overall structure still needs more support to build endurance effectively."
-            )
-
-        return bullets[:2]
-
-    # --- FALLBACK: USE SIGNALS ---
-    for signal in top_signals[:2]:
-        detail = signal.get("detail", "")
-        if detail:
-            bullets.append(detail)
-
-    # Deduplicate
-    deduped: list[str] = []
-    seen: set[str] = set()
-    for bullet in bullets:
-        if bullet not in seen:
-            deduped.append(bullet)
-            seen.add(bullet)
-
-    return deduped[:2]
+def build_supporting_metrics(metrics: dict[str, Any]) -> list[tuple[str, str]]:
+    return [
+        ("Run days", f"{round((metrics.get('days_with_run_last_28', 0) or 0) / 4.0, 1)} per week"),
+        ("Weekly volume", f"{_format_km(metrics.get('recent_avg_weekly_km', 0))} km"),
+        ("Quality", f"{metrics.get('quality_runs_last_28', 0)} sessions in 4 weeks"),
+        ("Long runs", f"{metrics.get('long_runs_last_28', 0)} in 4 weeks"),
+    ]

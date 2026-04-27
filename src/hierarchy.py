@@ -1,81 +1,41 @@
-def build_training_hierarchy(metrics: dict, focus: dict) -> dict:
+from __future__ import annotations
+
+from typing import Any
+
+
+def _session_text(count: int, singular: str, plural: str) -> str:
+    if count == 1:
+        return f"1 {singular}"
+    return f"{count} {plural}"
+
+
+def build_training_hierarchy(metrics: dict[str, Any], focus: dict[str, Any]) -> dict[str, Any]:
+    threshold_count = int(metrics.get("threshold_sessions_last_28", 0) or 0)
+    vo2_count = int(metrics.get("vo2_sessions_last_28", 0) or 0) + int(metrics.get("race_sessions_last_28", 0) or 0)
+    long_count = int(metrics.get("long_runs_last_28", 0) or 0)
+    run_days = round((metrics.get("days_with_run_last_28", 0) or 0) / 4.0, 1)
+    recent_km = round(float(metrics.get("recent_avg_weekly_km", 0) or 0), 1)
+
     primary = {
-        "label": focus.get("headline", "Primary limiter"),
+        "label": focus.get("primary_limiter", focus.get("headline", "Primary limiter")),
+        "headline": focus.get("headline", "Maintain consistency"),
         "detail": focus.get("detail", ""),
     }
 
     secondary = []
-    supportive = []
+    if focus.get("secondary_focus"):
+        secondary.append({"label": "Secondary focus", "detail": focus["secondary_focus"]})
 
-    threshold_count = int(metrics.get("threshold_sessions_last_28", 0) or 0)
-    vo2_count = int(metrics.get("vo2_sessions_last_28", 0) or 0)
-    race_count = int(metrics.get("race_sessions_last_28", 0) or 0)
-    long_run_count = int(metrics.get("long_runs_last_28", 0) or 0)
+    supportive = [
+        {"label": "Run frequency", "detail": f"About {run_days} run days per week in the last 4 weeks."},
+        {"label": "Weekly volume", "detail": f"Recent average is about {recent_km} km per week."},
+    ]
 
+    if long_count > 0:
+        supportive.append({"label": "Long run", "detail": f"{_session_text(long_count, 'long run', 'long runs')} in the last 4 weeks."})
     if threshold_count > 0:
-        if threshold_count <= 2:
-            secondary.append(
-                {
-                    "label": "Threshold work",
-                    "detail": f"Present but limited, with {threshold_count} session(s) in the last 4 weeks.",
-                }
-            )
-        else:
-            supportive.append(
-                {
-                    "label": "Threshold work",
-                    "detail": f"Present, with {threshold_count} session(s) in the last 4 weeks.",
-                }
-            )
-    else:
-        secondary.append(
-            {
-                "label": "Threshold work",
-                "detail": "Absent in the last 4 weeks.",
-            }
-        )
-
-    if long_run_count > 0:
-        if long_run_count <= 2:
-            secondary.append(
-                {
-                    "label": "Long run stimulus",
-                    "detail": f"Present but inconsistent, with {long_run_count} long run(s) in the last 4 weeks.",
-                }
-            )
-        else:
-            supportive.append(
-                {
-                    "label": "Long run stimulus",
-                    "detail": f"Present, with {long_run_count} long run(s) in the last 4 weeks.",
-                }
-            )
-    else:
-        secondary.append(
-            {
-                "label": "Long run stimulus",
-                "detail": "Absent in the last 4 weeks.",
-            }
-        )
-
+        supportive.append({"label": "Threshold", "detail": f"{_session_text(threshold_count, 'threshold session', 'threshold sessions')} in the last 4 weeks."})
     if vo2_count > 0:
-        supportive.append(
-            {
-                "label": "VO2 work",
-                "detail": f"Present, with {vo2_count} session(s) in the last 4 weeks.",
-            }
-        )
+        supportive.append({"label": "VO2 / race stimulus", "detail": f"{_session_text(vo2_count, 'session', 'sessions')} in the last 4 weeks."})
 
-    if race_count > 0:
-        supportive.append(
-            {
-                "label": "Race efforts",
-                "detail": f"Present, with {race_count} race effort(s) in the last 4 weeks.",
-            }
-        )
-
-    return {
-        "primary": primary,
-        "secondary": secondary,
-        "supportive": supportive,
-    }
+    return {"primary": primary, "secondary": secondary[:2], "supportive": supportive[:5]}

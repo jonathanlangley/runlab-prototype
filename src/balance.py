@@ -1,224 +1,195 @@
+from __future__ import annotations
+
+from typing import Any
+
 import pandas as pd
 
+SESSION_ORDER = ["Easy", "Quality", "Long run"]
+DETAILED_SESSION_ORDER = ["Easy", "Threshold", "VO2", "Long run"]
 
-SESSION_ORDER = ["Easy", "Threshold", "VO2", "Long run"]
+
+def _normalise_type(value: Any) -> str:
+    text = str(value or "easy").strip().lower()
+    if text == "race":
+        return "vo2"
+    if text not in {"easy", "threshold", "vo2", "long run"}:
+        return "easy"
+    return text
 
 
-def allocate_targets_from_weights(total_run_days: int, weights: dict[str, float]) -> dict[str, int]:
+def _dominant_session_by_day(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return pd.DataFrame(columns=["run_date", "balance_label", "detailed_label"])
+
+    day_df = df.copy()
+    day_df["run_date"] = pd.to_datetime(day_df["date"]).dt.date
+    day_df["workout_type"] = day_df["workout_type"].apply(_normalise_type)
+
+    priority_map = {"easy": 1, "threshold": 2, "vo2": 3, "long run": 4}
+    detailed_map = {"easy": "Easy", "threshold": "Threshold", "vo2": "VO2", "long run": "Long run"}
+    balance_map = {"easy": "Easy", "threshold": "Quality", "vo2": "Quality", "long run": "Long run"}
+
+    day_df["priority"] = day_df["workout_type"].map(priority_map).fillna(1)
+    day_df["detailed_label"] = day_df["workout_type"].map(detailed_map).fillna("Easy")
+    day_df["balance_label"] = day_df["workout_type"].map(balance_map).fillna("Easy")
+
+    return (
+        day_df.sort_values(["run_date", "priority"], ascending=[True, False])
+        .drop_duplicates(subset=["run_date"], keep="first")
+        .reset_index(drop=True)
+    )
+
+
+def allocate_targets_from_weights(total_run_days: int, weights: dict[str, float], order: list[str] | None = None) -> dict[str, int]:
+    order = order or SESSION_ORDER
     if total_run_days <= 0:
-        return {session: 0 for session in SESSION_ORDER}
+        return {session: 0 for session in order}
 
-    raw = {session: weights.get(session, 0.0) * total_run_days for session in SESSION_ORDER}
-    base = {session: int(raw[session]) for session in SESSION_ORDER}
+    raw = {session: weights.get(session, 0.0) * total_run_days for session in order}
+    base = {session: int(raw[session]) for session in order}
+    remainder = total_run_days - sum(base.values())
 
-    allocated = sum(base.values())
-    remainder = total_run_days - allocated
-
-    if remainder > 0:
-        fractional_order = sorted(
-            SESSION_ORDER,
-            key=lambda s: raw[s] - base[s],
-            reverse=True,
-        )
-        for i in range(remainder):
-            base[fractional_order[i % len(fractional_order)]] += 1
+    for session in sorted(order, key=lambda s: raw[s] - base[s], reverse=True)[:remainder]:
+        base[session] += 1
 
     return base
 
 
-def build_ideal_targets(focus: dict, total_run_days: int) -> dict[str, int]:
-    headline = focus.get("headline", "").lower()
+def target_weights_for_focus(focus: dict[str, Any]) -> dict[str, float]:
+    primary_key = str(focus.get("primary_key", "")).lower()
 
-    weights = {
-        "Easy": 0.70,
-        "Threshold": 0.15,
-        "VO2": 0.05,
-        "Long run": 0.10,
-    }
+    if primary_key == "consistency":
+        return {"Easy": 0.78, "Quality": 0.10, "Long run": 0.12}
+    if primary_key == "volume":
+        return {"Easy": 0.72, "Quality": 0.12, "Long run": 0.16}
+    if primary_key == "balance":
+        return {"Easy": 0.76, "Quality": 0.10, "Long run": 0.14}
+    if primary_key == "long_run":
+        return {"Easy": 0.68, "Quality": 0.12, "Long run": 0.20}
+    if primary_key == "threshold":
+        return {"Easy": 0.68, "Quality": 0.20, "Long run": 0.12}
+    if primary_key == "quality":
+        return {"Easy": 0.68, "Quality": 0.20, "Long run": 0.12}
+    return {"Easy": 0.70, "Quality": 0.15, "Long run": 0.15}
 
-    if "threshold" in headline:
-        weights = {
-            "Easy": 0.65,
-            "Threshold": 0.20,
-            "VO2": 0.05,
-            "Long run": 0.10,
-        }
-    elif "volume" in headline or "aerobic" in headline:
-        weights = {
-            "Easy": 0.70,
-            "Threshold": 0.10,
-            "VO2": 0.05,
-            "Long run": 0.15,
-        }
-    elif "long run" in headline or "endurance" in headline:
-        weights = {
-            "Easy": 0.65,
-            "Threshold": 0.10,
-            "VO2": 0.05,
-            "Long run": 0.20,
-        }
-    elif "support your current intensity" in headline or "support vo2 work" in headline:
-        weights = {
-            "Easy": 0.75,
-            "Threshold": 0.10,
-            "VO2": 0.05,
-            "Long run": 0.10,
-        }
-    elif "frequency" in headline or "consistency" in headline:
-        weights = {
-            "Easy": 0.75,
-            "Threshold": 0.10,
-            "VO2": 0.05,
-            "Long run": 0.10,
-        }
 
-    targets = allocate_targets_from_weights(total_run_days, weights)
+def build_ideal_targets(focus: dict[str, Any], total_run_days: int) -> dict[str, int]:
+    targets = allocate_targets_from_weights(total_run_days, target_weights_for_focus(focus), SESSION_ORDER)
 
-    if total_run_days >= 5 and (
-        "support your current intensity" in headline
-        or "support vo2 work" in headline
-        or "intensity" in headline
-        or "vo2" in headline
-    ):
-        targets["VO2"] = max(1, targets["VO2"])
-        total_assigned = sum(targets.values())
-        if total_assigned > total_run_days:
-            targets["Easy"] = max(0, targets["Easy"] - (total_assigned - total_run_days))
+    # Avoid unrealistic targets when frequency is low. At 3-4 run days per week, combine quality into one bucket.
+    if total_run_days < 16:
+        targets["Quality"] = min(targets["Quality"], max(1, round(total_run_days / 7))) if total_run_days >= 8 else 0
+        assigned = sum(targets.values())
+        targets["Easy"] = max(0, targets["Easy"] + (total_run_days - assigned))
 
     return targets
 
 
-def build_balance_comparison_df(df: pd.DataFrame, focus: dict) -> tuple[pd.DataFrame, int]:
-    if df.empty or "date" not in df.columns or "workout_type" not in df.columns:
-        empty_total = 0
-        empty_targets = build_ideal_targets(focus, empty_total)
-        empty_df = pd.DataFrame(
-            {
-                "Session type": SESSION_ORDER,
-                "Current days": [0, 0, 0, 0],
-                "Ideal days": [empty_targets[s] for s in SESSION_ORDER],
-                "Gap": [0, 0, 0, 0],
-                "Current %": [0.0, 0.0, 0.0, 0.0],
-                "Ideal %": [0.0, 0.0, 0.0, 0.0],
-            }
-        )
-        return empty_df, empty_total
+def split_quality_targets(quality_days: int, focus: dict[str, Any]) -> dict[str, int]:
+    primary_key = str(focus.get("primary_key", "")).lower()
+    if quality_days <= 0:
+        return {"Threshold": 0, "VO2": 0}
+    if primary_key in {"threshold", "volume", "balance", "consistency"}:
+        threshold = max(1, quality_days - 1)
+        return {"Threshold": threshold, "VO2": quality_days - threshold}
+    if primary_key == "quality" and quality_days >= 2:
+        return {"Threshold": 1, "VO2": quality_days - 1}
+    return {"Threshold": quality_days, "VO2": 0}
 
-    day_df = df.copy()
-    day_df["run_date"] = pd.to_datetime(day_df["date"]).dt.date
 
-    priority_map = {
-        "easy": 1,
-        "threshold": 2,
-        "vo2": 3,
-        "race": 3,
-        "long run": 4,
-    }
+def build_balance_comparison_df(df: pd.DataFrame, focus: dict[str, Any]) -> tuple[pd.DataFrame, int]:
+    required = {"date", "workout_type"}
+    if df.empty or not required.issubset(df.columns):
+        targets = build_ideal_targets(focus, 0)
+        return pd.DataFrame({
+            "Session type": SESSION_ORDER,
+            "Current days": [0, 0, 0],
+            "Ideal days": [targets[s] for s in SESSION_ORDER],
+            "Gap": [0, 0, 0],
+            "Current %": [0.0, 0.0, 0.0],
+            "Ideal %": [0.0, 0.0, 0.0],
+        }), 0
 
-    label_map = {
-        "easy": "Easy",
-        "threshold": "Threshold",
-        "vo2": "VO2",
-        "race": "VO2",
-        "long run": "Long run",
-    }
-
-    day_df["priority"] = day_df["workout_type"].map(priority_map).fillna(1)
-    day_df["balance_label"] = day_df["workout_type"].map(label_map).fillna("Easy")
-
-    dominant_by_day = (
-        day_df.sort_values(["run_date", "priority"], ascending=[True, False])
-        .drop_duplicates(subset=["run_date"], keep="first")
-    )
-
-    total_run_days = int(dominant_by_day["run_date"].nunique())
-
-    current_counts = {
-        "Easy": int((dominant_by_day["balance_label"] == "Easy").sum()),
-        "Threshold": int((dominant_by_day["balance_label"] == "Threshold").sum()),
-        "VO2": int((dominant_by_day["balance_label"] == "VO2").sum()),
-        "Long run": int((dominant_by_day["balance_label"] == "Long run").sum()),
-    }
-
+    dominant = _dominant_session_by_day(df)
+    total_run_days = int(dominant["run_date"].nunique())
+    current_counts = {session: int((dominant["balance_label"] == session).sum()) for session in SESSION_ORDER}
     ideal_counts = build_ideal_targets(focus, total_run_days)
 
     rows = []
-    for session_type in SESSION_ORDER:
-        current_days = current_counts.get(session_type, 0)
-        ideal_days = ideal_counts.get(session_type, 0)
-
-        rows.append(
-            {
-                "Session type": session_type,
-                "Current days": current_days,
-                "Ideal days": ideal_days,
-                "Gap": current_days - ideal_days,
-                "Current %": round(current_days / total_run_days * 100, 1) if total_run_days else 0.0,
-                "Ideal %": round(ideal_days / total_run_days * 100, 1) if total_run_days else 0.0,
-            }
-        )
+    for session in SESSION_ORDER:
+        current = current_counts.get(session, 0)
+        ideal = ideal_counts.get(session, 0)
+        rows.append({
+            "Session type": session,
+            "Current days": current,
+            "Ideal days": ideal,
+            "Gap": current - ideal,
+            "Current %": round(current / total_run_days * 100, 1) if total_run_days else 0.0,
+            "Ideal %": round(ideal / total_run_days * 100, 1) if total_run_days else 0.0,
+        })
 
     return pd.DataFrame(rows), total_run_days
 
 
-def build_balance_interpretation(balance_df: pd.DataFrame, focus: dict, total_run_days: int) -> str:
-    if balance_df.empty:
-        return "No training balance insight available."
+def build_detailed_balance_df(df: pd.DataFrame, focus: dict[str, Any]) -> pd.DataFrame:
+    dominant = _dominant_session_by_day(df)
+    total = int(dominant["run_date"].nunique()) if not dominant.empty else 0
+    quality_target = build_ideal_targets(focus, total).get("Quality", 0)
+    split = split_quality_targets(quality_target, focus)
+    targets = {
+        "Easy": build_ideal_targets(focus, total).get("Easy", 0),
+        "Threshold": split["Threshold"],
+        "VO2": split["VO2"],
+        "Long run": build_ideal_targets(focus, total).get("Long run", 0),
+    }
 
-    headline = focus.get("headline", "").lower()
-    target_volume_range = focus.get("target_volume_range")
+    rows = []
+    for session in DETAILED_SESSION_ORDER:
+        current = int((dominant["detailed_label"] == session).sum()) if not dominant.empty else 0
+        ideal = targets.get(session, 0)
+        rows.append({"Session type": session, "Current days": current, "Ideal days": ideal, "Gap": current - ideal})
+    return pd.DataFrame(rows)
 
-    def gap_text(label: str) -> str:
-        current_days = int(balance_df.loc[balance_df["Session type"] == label, "Current days"].iloc[0])
-        ideal_days = int(balance_df.loc[balance_df["Session type"] == label, "Ideal days"].iloc[0])
-        diff = current_days - ideal_days
 
-        if diff > 0:
-            return f"{label} is {abs(diff)} run day(s) above the current target"
-        if diff < 0:
-            return f"{label} is {abs(diff)} run day(s) below the current target"
-        return f"{label} is in line with the current target"
+def _get_days(balance_df: pd.DataFrame, label: str, col: str) -> int:
+    match = balance_df.loc[balance_df["Session type"] == label, col]
+    if match.empty:
+        return 0
+    return int(match.iloc[0])
 
-    prefix = f"Based on {total_run_days} distinct run days. "
 
-    if "frequency" in headline or "consistency" in headline:
+def build_balance_interpretation(balance_df: pd.DataFrame, focus: dict[str, Any], total_run_days: int) -> str:
+    if balance_df.empty or total_run_days <= 0:
+        return "No recent run-day mix is available yet."
+
+    primary_key = str(focus.get("primary_key", ""))
+    quality_current = _get_days(balance_df, "Quality", "Current days")
+    quality_ideal = _get_days(balance_df, "Quality", "Ideal days")
+    easy_current = _get_days(balance_df, "Easy", "Current days")
+    easy_ideal = _get_days(balance_df, "Easy", "Ideal days")
+    long_current = _get_days(balance_df, "Long run", "Current days")
+    long_ideal = _get_days(balance_df, "Long run", "Ideal days")
+
+    prefix = f"Based on {total_run_days} distinct run days in the last 4 weeks, "
+
+    if primary_key == "balance":
         return prefix + (
-            f"The main issue is still frequency rather than session mix. "
-            f"{gap_text('Easy')}, but the bigger opportunity is simply getting more repeatable run days into the week."
+            f"quality appears heavy relative to the support underneath. The next block should move closer to "
+            f"{easy_ideal} easy days, {quality_ideal} quality day(s), and {long_ideal} long run day(s)."
         )
-
-    if "volume" in headline or "aerobic" in headline:
-        extra = ""
-        if target_volume_range:
-            extra = f" The short-term volume target is roughly {target_volume_range[0]}-{target_volume_range[1]} km per week."
+    if primary_key == "volume":
         return prefix + (
-            f"The pattern supports a more aerobic approach. "
-            f"{gap_text('Easy')} and {gap_text('VO2')}.{extra}"
+            f"the mix should favour easy volume. You currently have {easy_current} easy days against a target of about {easy_ideal}."
         )
-
-    if "threshold" in headline:
+    if primary_key == "long_run":
         return prefix + (
-            f"This recommendation is supported by the current mix. "
-            f"{gap_text('Threshold')}."
+            f"the main gap is long-run regularity. You currently have {long_current} long run day(s), with a short-term target of about {long_ideal}."
         )
-
-    if "long run" in headline or "endurance" in headline:
+    if primary_key == "threshold":
         return prefix + (
-            f"The endurance gap shows up clearly in the session mix. "
-            f"{gap_text('Long run')}."
-        )
-
-    if "support your current intensity" in headline or "support vo2 work" in headline:
-        extra = ""
-        if target_volume_range:
-            extra = f" A sensible next volume range would be around {target_volume_range[0]}-{target_volume_range[1]} km per week."
-        return prefix + (
-            f"The current intensity is not the main problem on its own. "
-            f"{gap_text('VO2')} and {gap_text('Easy')}. "
-            f"The bigger opportunity is to give the harder work better aerobic support through more easy running and a more stable weekly structure.{extra}"
+            f"quality is best treated as one controlled weekly stimulus. You currently have {quality_current} quality day(s), against a target of about {quality_ideal}."
         )
 
     return prefix + (
-        f"Compared with the current target mix, {gap_text('Easy')}, {gap_text('Threshold')}, "
-        f"{gap_text('VO2')}, and {gap_text('Long run')}."
+        f"a realistic next mix is about {easy_ideal} easy days, {quality_ideal} quality day(s), and {long_ideal} long run day(s)."
     )

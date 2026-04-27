@@ -1,157 +1,128 @@
 from __future__ import annotations
 
+from typing import Any
+
 from openai import OpenAI
 from src.config import OPENAI_API_KEY, OPENAI_MODEL
 
 
-def format_frequency(count: int) -> str:
+def _format_frequency(count: int, label: str) -> str:
     if count == 0:
-        return "none"
+        return f"no {label}"
     if count == 1:
-        return "1 session in the last 4 weeks"
-    if count <= 3:
-        return f"{count} sessions in the last 4 weeks"
-    return f"{count} sessions in the last 4 weeks"
+        return f"1 {label} in the last 4 weeks"
+    return f"{count} {label}s in the last 4 weeks"
 
 
-def build_structured_summary(metrics: dict) -> dict:
-    threshold_sessions = int(metrics.get("threshold_sessions_last_28", 0) or 0)
-    vo2_sessions = int(
-        metrics.get("vo2_sessions_last_28", metrics.get("interval_sessions_last_28", 0)) or 0
-    )
+def build_structured_summary(metrics: dict[str, Any]) -> dict[str, Any]:
+    threshold = int(metrics.get("threshold_sessions_last_28", 0) or 0)
+    vo2 = int(metrics.get("vo2_sessions_last_28", 0) or 0) + int(metrics.get("race_sessions_last_28", 0) or 0)
     long_runs = int(metrics.get("long_runs_last_28", 0) or 0)
-    days_with_run_last_28 = int(metrics.get("days_with_run_last_28", 0) or 0)
-
+    run_days = int(metrics.get("days_with_run_last_28", 0) or 0)
     return {
-        "run_days_per_week": round(days_with_run_last_28 / 4.0, 2),
+        "run_days_per_week": round(run_days / 4.0, 2),
         "recent_avg_weekly_km": metrics.get("recent_avg_weekly_km", 0),
-        "volume_trend": metrics.get("volume_trend", "Unknown"),
-        "threshold_freq_text": format_frequency(threshold_sessions),
-        "vo2_freq_text": format_frequency(vo2_sessions),
-        "long_run_freq_text": format_frequency(long_runs),
-        "threshold_present": threshold_sessions > 0,
-        "vo2_present": vo2_sessions > 0,
-        "long_run_present": long_runs > 0,
+        "volume_trend": metrics.get("volume_trend", "unknown"),
+        "threshold_text": _format_frequency(threshold, "threshold session"),
+        "vo2_text": _format_frequency(vo2, "VO2/race session"),
+        "long_run_text": _format_frequency(long_runs, "long run"),
     }
 
 
-def build_prompt(metrics: dict, signals: list[dict], focus: dict) -> str:
+def build_prompt(metrics: dict[str, Any], signals: list[dict[str, Any]], focus: dict[str, Any]) -> str:
     summary = build_structured_summary(metrics)
-
-    top_signal_lines = "\n".join(
-        [f"- {s['title']}: {s['detail']}" for s in signals[:2]]
-    ) or "- None"
-
-    target_volume_range = focus.get("target_volume_range")
-    target_volume_text = (
-        f"{target_volume_range[0]}-{target_volume_range[1]} km per week"
-        if target_volume_range
-        else "not specified"
-    )
+    primary_key = focus.get("primary_key", "unknown")
+    target = focus.get("target_volume_range")
+    target_text = f"{target[0]}-{target[1]} km per week" if target else "not specified"
+    signal_lines = "\n".join(f"- {s.get('title')}: {s.get('detail')}" for s in signals[:3]) or "- None"
 
     return f"""
-You are an experienced endurance running coach reviewing a short block of training.
+You are an experienced endurance running coach writing the explanation layer for RunLab.ai.
 
-The UI already shows:
-- the diagnosis
-- the recommendation
-- the action steps
-- the key metrics
+RunLab's deterministic engine has already chosen the recommendation. Do not change it. Your job is to explain why it makes sense.
 
-Your job is NOT to repeat those.
-
-Your job is to add deeper coaching context.
-
-Write exactly TWO short paragraphs.
+Write exactly two short paragraphs, 130-210 words total.
 
 Paragraph 1:
-- Explain what the current training pattern suggests
-- Highlight what is working and what is limiting progress
-- Explain interaction between volume, intensity, and long runs
+- Explain what the pattern suggests about the runner's current limiter.
+- Mention the interaction between easy volume, long run support, threshold work and VO2/race work.
+- Be specific to the facts below.
 
 Paragraph 2:
-- Explain WHY the recommendation makes sense from a training perspective
-- Make it clear why increasing volume and reducing reliance on intensity can improve 5K performance
-- Refer to aerobic development, fatigue cost, and ability to sustain pace
-- Explain why adding more intensity at this stage would be less effective
-- Explicitly connect the recommendation to improving 5K speed
-- Include one practical caution for the next block
+- Explain why this recommendation can improve 5K performance.
+- Explain that 5K speed is not only top-end speed. It also depends on aerobic support, fatigue resistance, threshold strength and the ability to repeat quality sessions.
+- Include one practical caution for the next block.
 
-FACTS
-
-Primary focus:
-{focus.get("headline", "Unknown")}
-
-Recent pattern:
-- Run days per week: {summary["run_days_per_week"]}
-- Weekly volume: {summary["recent_avg_weekly_km"]}
-- Volume trend: {summary["volume_trend"]}
-- Threshold work: {summary["threshold_freq_text"]}
-- VO2 work: {summary["vo2_freq_text"]}
-- Long runs: {summary["long_run_freq_text"]}
-
+Facts:
+Primary recommendation: {focus.get('headline')}
+Primary limiter: {focus.get('primary_limiter')}
+Primary key: {primary_key}
+Secondary focus: {focus.get('secondary_focus') or 'none'}
+Run days per week: {summary['run_days_per_week']}
+Weekly volume: {summary['recent_avg_weekly_km']} km
+Volume trend: {summary['volume_trend']}
+Threshold: {summary['threshold_text']}
+VO2/race: {summary['vo2_text']}
+Long runs: {summary['long_run_text']}
+Target volume: {target_text}
 Supporting signals:
-{top_signal_lines}
+{signal_lines}
 
-Target volume:
-{target_volume_text}
-
-STYLE RULES:
-- No repetition of the diagnosis or action steps
-- No bullet points
-- No quotes
-- No named references
-- No em dashes
-- Be clear and practical
-- Keep total length between 120 and 200 words
+Style rules:
+- No bullets.
+- No named references.
+- No em dashes.
+- No generic motivational language.
+- Do not repeat the action steps.
+- Do not introduce a different recommendation.
 """.strip()
 
 
-def fallback_explanation(metrics: dict, signals: list[dict], focus: dict) -> str:
+def fallback_explanation(metrics: dict[str, Any], signals: list[dict[str, Any]], focus: dict[str, Any]) -> str:
     summary = build_structured_summary(metrics)
+    primary_key = str(focus.get("primary_key", ""))
+    volume = summary["recent_avg_weekly_km"]
+    run_days = summary["run_days_per_week"]
 
-    base_text = (
-        f"The current pattern shows some useful elements in place, but the overall structure is not yet strong enough to fully support consistent progression. "
-        f"With weekly volume around {summary['recent_avg_weekly_km']} km and a relatively modest run frequency, the supporting aerobic base is likely limiting how effective the harder sessions can be."
+    if primary_key in {"volume", "balance"}:
+        return (
+            f"The current pattern suggests that the faster work needs more aerobic support underneath it. With about {volume} km per week and {run_days} run days, the priority is not simply to add another hard session. Easy volume and a stable long run improve durability, recovery between sessions and the ability to turn threshold and VO2 work into repeatable adaptation.\n\n"
+            "That matters for 5K performance because 5K speed is not only about top-end pace. A stronger aerobic base helps you sustain a high percentage of your speed for longer, delays fatigue and makes quality sessions more productive. The caution is to build the next block gradually, keeping quality controlled while volume becomes more consistent."
+        )
+
+    if primary_key == "threshold":
+        return (
+            "The current pattern lacks a regular threshold stimulus, which leaves a gap between easy running and harder VO2 or race-style efforts. Threshold work improves the speed you can hold while staying controlled, and it usually carries less fatigue cost than repeated very hard sessions.\n\n"
+            "For 5K performance, this helps bridge aerobic fitness and top-end speed. It supports the ability to sustain pace rather than simply hit fast reps in isolation. The caution is to keep threshold sessions repeatable and avoid turning them into races."
+        )
+
+    if primary_key == "consistency":
+        return (
+            f"The main pattern is frequency rather than fitness. At about {run_days} run days per week, the body is not yet getting a frequent enough signal to adapt reliably, so bigger individual sessions are less useful than a more repeatable week.\n\n"
+            "For 5K improvement, consistency creates the base that allows volume, threshold and VO2 work to stack together. The caution is to add easy days first, not extra intensity, so the new rhythm feels sustainable rather than forced."
+        )
+
+    return (
+        "The current pattern has enough useful work to build from, but the next block needs one clear priority rather than several competing changes. Keeping most of the week stable makes it easier to see whether the chosen stimulus is actually working.\n\n"
+        "For 5K performance, the goal is to combine aerobic support, threshold strength and controlled speed work in a way that can be repeated. The caution is to progress one lever at a time and avoid making the week harder in several places at once."
     )
 
-    rationale_text = (
-        "From a training perspective, building a stronger aerobic base improves durability, recovery between sessions, and the ability to absorb quality work. "
-        "The key risk in the short term is adding more intensity without increasing overall support, which can lead to fatigue without meaningful adaptation. "
-        "Keeping the structure controlled while gradually building volume should allow the current work to become more productive."
-    )
 
-    return f"{base_text}\n\n{rationale_text}"
-
-
-def generate_ai_explanation(metrics: dict, signals: list[dict], focus: dict) -> tuple[str, bool]:
+def generate_ai_explanation(metrics: dict[str, Any], signals: list[dict[str, Any]], focus: dict[str, Any]) -> tuple[str, bool]:
     if not OPENAI_API_KEY:
         return fallback_explanation(metrics, signals, focus), False
-
-    prompt = build_prompt(metrics, signals, focus)
 
     try:
         client = OpenAI(api_key=OPENAI_API_KEY)
         response = client.chat.completions.create(
             model=OPENAI_MODEL,
-            temperature=0.2,
             messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a pragmatic endurance coach. "
-                        "You explain training patterns clearly and concisely. "
-                        "You do not repeat obvious information. "
-                        "You focus on interpretation and reasoning."
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": prompt,
-                },
+                {"role": "system", "content": "You write concise, practical endurance coaching explanations. You do not override deterministic product logic."},
+                {"role": "user", "content": build_prompt(metrics, signals, focus)},
             ],
+            temperature=0.4,
         )
-        return response.choices[0].message.content.strip(), True
-    except Exception as e:
-        print(f"OpenAI error: {e}")
+        content = response.choices[0].message.content or ""
+        return content.strip() or fallback_explanation(metrics, signals, focus), True
+    except Exception:
         return fallback_explanation(metrics, signals, focus), False
