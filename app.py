@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from html import escape
 from pathlib import Path
 from textwrap import dedent
@@ -8,6 +9,7 @@ import pandas as pd
 import streamlit as st
 
 from src.charts import build_weekly_distance_chart, plot_training_balance_with_counts
+from src.pdf_generator import generate_runlab_pdf_bytes
 from src.report_engine import generate_runlab_report
 
 try:
@@ -103,6 +105,21 @@ def seconds_to_pace_str(seconds_per_km: float | None) -> str:
     return f"{seconds // 60}:{seconds % 60:02d}/km"
 
 
+def render_pdf_preview(pdf_bytes: bytes, height: int = 760) -> None:
+    base64_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
+
+    pdf_display = f"""
+        <iframe
+            src="data:application/pdf;base64,{base64_pdf}"
+            width="100%"
+            height="{height}"
+            type="application/pdf">
+        </iframe>
+    """
+
+    st.markdown(pdf_display, unsafe_allow_html=True)
+
+
 def read_input_data(mode: str, uploaded_file, sample_option: str) -> pd.DataFrame | None:
     if mode == "Upload your own data" and uploaded_file is not None:
         return pd.read_csv(uploaded_file)
@@ -156,7 +173,8 @@ def render_css() -> None:
             .action-card,
             .metric-card,
             .signal-card,
-            .section-card {
+            .section-card,
+            .locked-card {
                 border: 1px solid #e5e7eb;
                 border-radius: 16px;
                 background: #ffffff;
@@ -172,6 +190,11 @@ def render_css() -> None:
             .action-card {
                 background: #ecfdf5;
                 border-color: #a7f3d0;
+            }
+
+            .locked-card {
+                background: #fffbeb;
+                border-color: #fcd34d;
             }
 
             .kicker {
@@ -294,7 +317,24 @@ def get_product_report(report: dict) -> dict:
     }
 
 
-def render_product_report(report: dict) -> None:
+def render_locked_report_message() -> None:
+    st.markdown(
+        """
+        <div class='locked-card'>
+            <div class='section-title'>Unlock your full RunLab Performance Report</div>
+            <div class='body-copy'>
+                Your headline insight and key signal are shown above. Unlock the full report to view:
+            </div>
+            <div class='support-box'>Your specific next training actions</div>
+            <div class='support-box'>The full coach-style explanation</div>
+            <div class='support-box'>A downloadable personalised PDF report</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_product_report(report: dict, unlocked: bool = True) -> None:
     product = get_product_report(report)
 
     st.markdown(
@@ -339,6 +379,10 @@ def render_product_report(report: dict) -> None:
         """,
         unsafe_allow_html=True,
     )
+
+    if not unlocked:
+        render_locked_report_message()
+        return
 
     actions = product.get("actions", []) or [
         "Keep the current structure stable.",
@@ -399,6 +443,18 @@ def render_product_report(report: dict) -> None:
             unsafe_allow_html=True,
         )
 
+    pdf_bytes = generate_runlab_pdf_bytes(report)
+
+    st.download_button(
+        label="Download your personalised RunLab Performance Report (PDF)",
+        data=pdf_bytes,
+        file_name="runlab_performance_report.pdf",
+        mime="application/pdf",
+    )
+
+    with st.expander("Preview PDF report", expanded=False):
+        render_pdf_preview(pdf_bytes)
+
     supporting = product.get("supporting_signals", []) or []
     if supporting:
         with st.expander("Supporting signals", expanded=False):
@@ -416,7 +472,10 @@ def render_product_report(report: dict) -> None:
                 )
 
 
-def render_next_week_table(report: dict) -> None:
+def render_next_week_table(report: dict, unlocked: bool = True) -> None:
+    if not unlocked:
+        return
+
     rows = report.get("next_week_rows", [])
     if not rows:
         return
@@ -508,12 +567,13 @@ def render_supporting_analysis(report: dict) -> None:
         )
 
 
-def render_report(report: dict) -> None:
-    render_product_report(report)
-    render_next_week_table(report)
+def render_report(report: dict, unlocked: bool = True) -> None:
+    render_product_report(report, unlocked=unlocked)
+    render_next_week_table(report, unlocked=unlocked)
 
-    with st.expander("Supporting analysis", expanded=False):
-        render_supporting_analysis(report)
+    if unlocked:
+        with st.expander("Supporting analysis", expanded=False):
+            render_supporting_analysis(report)
 
 
 def render_sidebar() -> tuple:
@@ -612,16 +672,19 @@ def main() -> None:
         disabled=mode != "Try demo scenarios",
     )
 
-    if mode == "Upload your own data":
-        invite_code = st.text_input("Private beta code", type="password").strip()
+    valid_beta_code = False
 
-        if invite_code not in VALID_BETA_CODES:
-            st.info(
-                "Uploads are currently private beta only. "
-                "You can still explore the demo scenarios."
-            )
-            st.link_button("Join the beta list", BETA_SIGNUP_URL)
-            return
+    if mode == "Upload your own data":
+        invite_code = st.text_input(
+            "Private beta code",
+            placeholder="Enter beta access code"
+        ).strip()
+        valid_beta_code = invite_code in VALID_BETA_CODES
+
+        if invite_code and valid_beta_code:
+            st.success("Beta code accepted. Your full report will unlock after upload.")
+        elif invite_code and not valid_beta_code:
+            st.warning("Beta code not recognised. You can still preview the headline insight.")
 
         if uploaded_file is None:
             st.info("Upload a CSV to generate a RunLab Performance Report.")
@@ -649,7 +712,18 @@ def main() -> None:
         st.error(f"RunLab could not generate a report: {exc}")
         return
 
-    render_report(report)
+    has_paid = False
+
+    unlocked = mode == "Try demo scenarios" or valid_beta_code or has_paid
+
+    if mode == "Upload your own data" and not unlocked:
+        st.info(
+            "Upload preview mode: your headline insight is shown below. "
+            "A beta code or future payment unlocks the full report."
+        )
+        st.link_button("Join the beta list", BETA_SIGNUP_URL)
+
+    render_report(report, unlocked=unlocked)
 
 
 if __name__ == "__main__":
