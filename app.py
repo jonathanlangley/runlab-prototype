@@ -310,10 +310,11 @@ def get_product_report(report: dict) -> dict:
             "title": report.get("focus", {}).get("limiter", "Primary limiter"),
             "detail": report.get("focus", {}).get("detail", ""),
         },
-        "actions": report.get("focus", {}).get("prescription", [])[:2],
+        "actions": report.get("focus", {}).get("prescription", [])[:4],
         "why_points": report.get("why_points", [])[:3],
         "coach_explanation": report.get("ai_text", ""),
         "supporting_signals": report.get("top_signals", [])[:3],
+        "focus": report.get("focus", {}),
     }
 
 
@@ -336,6 +337,22 @@ def render_locked_report_message() -> None:
 
 def render_product_report(report: dict, unlocked: bool = True) -> None:
     product = get_product_report(report)
+    focus = product.get("focus", report.get("focus", {}))
+
+    confidence_label = ""
+    confidence_note = ""
+    if isinstance(focus, dict):
+        confidence_label = str(focus.get("confidence_label", ""))
+        confidence_note = str(focus.get("confidence_note", ""))
+
+    confidence_html = ""
+    if confidence_label:
+        confidence_html = (
+            f"<div class='small-note'>"
+            f"<strong>{html_text(confidence_label)}</strong>"
+            f"{': ' + html_text(confidence_note) if confidence_note else ''}"
+            f"</div>"
+    )
 
     st.markdown(
         f"""
@@ -343,6 +360,7 @@ def render_product_report(report: dict, unlocked: bool = True) -> None:
             <div class='kicker'>RunLab Performance Report</div>
             <div class='hero-title'>{html_text(product.get("primary_insight"))}</div>
             <div class='body-copy'>{html_text(product.get("primary_summary"))}</div>
+            {confidence_html}
         </div>
         """,
         unsafe_allow_html=True,
@@ -394,7 +412,7 @@ def render_product_report(report: dict, unlocked: bool = True) -> None:
         unsafe_allow_html=True,
     )
 
-    for action in actions[:2]:
+    for action in actions[:4]:
         st.markdown(
             f"<div class='step-box'>{html_text(action)}</div>",
             unsafe_allow_html=True,

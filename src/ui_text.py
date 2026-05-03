@@ -23,9 +23,6 @@ def build_focus_diagnosis(
     races = int(metrics.get("race_sessions_last_28", 0) or 0)
     long_runs = int(metrics.get("long_runs_last_28", 0) or 0)
 
-    plan = focus.get("next_week_plan", {})
-    km_low, km_high = plan.get("target_km_range", (None, None))
-
     if primary_key == "consistency":
         return (
             headline,
@@ -35,7 +32,7 @@ def build_focus_diagnosis(
     if primary_key == "volume":
         return (
             headline,
-            f"Your recent average is about {recent_km} km per week. The next useful step is {km_low}-{km_high} km, mostly through easy running.",
+            f"You are averaging about {recent_km} km per week, which is below the level usually needed to support consistent threshold or race-level work.",
         )
 
     if primary_key == "aerobic_support":
@@ -89,62 +86,69 @@ def build_why_this_matters(
     focus: dict[str, Any] | None = None,
 ) -> list[str]:
     primary_key = str((focus or {}).get("primary_key", ""))
-
-    if primary_key == "consistency":
-        return [
-            "Performance improves from repeated stimulus. A reliable weekly rhythm usually beats occasional bigger weeks.",
-            "Once frequency is stable, volume and quality can be added without making single sessions carry too much load.",
-        ]
+    weekly_km = round(float(metrics.get("recent_avg_weekly_km", 0) or 0), 1)
 
     if primary_key == "volume":
         return [
-            "Aerobic volume increases the amount of fast running you can support before fatigue takes over.",
-            "Easy mileage also makes quality sessions more productive because they sit on top of a stronger base.",
-            "Adding more intensity now would probably increase fatigue faster than fitness.",
+            f"At around {weekly_km} km per week, much of the benefit from hard sessions may be lost because the aerobic base is not strong enough to fully support them.",
+            "Adding another hard session now would increase fatigue without fixing the main limiter.",
+            "The correct sequence is to build easy volume first, then layer quality on top.",
         ]
 
     if primary_key == "aerobic_support":
         return [
-            "Quality work only produces its full benefit when there is enough easy volume underneath it.",
-            "More easy running improves recovery between hard efforts and helps threshold or VO2 sessions become repeatable.",
-            "The better sequence is to support the hard work first, then sharpen intensity once the base can absorb it.",
+            "The current training includes hard efforts, but not enough easy running to support them.",
+            "This means sessions can become isolated hard efforts rather than repeatable training stimulus.",
+            "The correct sequence is to support the hard work first, then sharpen intensity later.",
         ]
 
-    if primary_key == "load_stability":
+    if primary_key == "consistency":
         return [
-            "Fitness responds best to a repeatable load. If weekly volume is bouncing around, it becomes harder to know whether the body is adapting or just coping.",
-            "Stabilising the week makes the next progression safer and easier to interpret.",
+            "The current pattern is not repeatable enough yet, which limits long-term progress.",
+            "Inconsistent training reduces the cumulative effect of all sessions.",
+            "The correct sequence is consistency first, then progression.",
         ]
 
     if primary_key == "long_run":
         return [
-            "A regular long run improves durability and fatigue resistance, even for shorter races.",
-            "It gives the rest of the week more aerobic support, so faster work is absorbed rather than just survived.",
+            "The long run is the key endurance stimulus missing from the week.",
+            "Without it, fatigue resistance and durability remain limited.",
+            "The correct sequence is to establish the long run before increasing intensity.",
         ]
 
     if primary_key == "threshold":
         return [
-            "Threshold training improves the fastest pace you can sustain while staying controlled.",
-            "It bridges easy volume and harder interval work, making performance gains more repeatable.",
-            "The aim is controlled discomfort, not another race effort.",
+            "The current week lacks enough sustained aerobic pressure.",
+            "Threshold work improves the pace you can hold without excessive fatigue.",
+            "The correct sequence is controlled threshold before harder intensity.",
         ]
 
     if primary_key == "quality":
         return [
-            "Once consistency and volume are in place, performance still needs a clear faster stimulus.",
-            "One controlled quality session gives the body a reason to adapt without turning the whole week into a recovery problem.",
+            "The base is present, but there is no clear performance stimulus.",
+            "Without it, fitness may plateau despite consistent training.",
+            "The correct sequence is one clear quality session, then review the response.",
         ]
 
     if primary_key == "progression":
         return [
-            "When the structure is already solid, improvement usually comes from progressing one lever clearly.",
-            "Changing too many things at once makes it harder to know what is actually working.",
+            "The current structure is sound, but stimulus is static.",
+            "Without progression, adaptation slows or stops.",
+            "The correct sequence is to move one lever clearly, not many at once.",
+        ]
+
+    if primary_key == "load_stability":
+        return [
+            "The recent load is too variable to progress confidently.",
+            "A more stable week makes the training response easier to interpret.",
+            "The correct sequence is stable load first, then progression.",
         ]
 
     if primary_key == "maintenance":
         return [
-            "When training is broadly healthy, the highest-value move is often to protect consistency.",
-            "Small progressions are safer and easier to interpret than big changes to volume or intensity.",
+            "The current pattern is broadly healthy, so the main risk is over-correcting something that is already working.",
+            "Small progressions are safer and easier to interpret than sudden changes to volume or intensity.",
+            "The correct sequence is to protect the rhythm and progress carefully.",
         ]
 
     if top_signals:

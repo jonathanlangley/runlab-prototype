@@ -159,11 +159,6 @@ def build_metrics_table(metrics: dict[str, Any], styles: dict[str, ParagraphStyl
 
 
 def generate_runlab_pdf_bytes(report: dict[str, Any]) -> bytes:
-    """
-    Generate a RunLab PDF report from the full report dictionary returned by
-    generate_runlab_report().
-    """
-
     product = report.get("product_report", {}) or {}
     metrics = report.get("metrics", {}) or {}
     styles = build_pdf_styles()
@@ -190,7 +185,12 @@ def generate_runlab_pdf_bytes(report: dict[str, Any]) -> bytes:
         )
     )
 
-    story.append(_para(product.get("primary_insight", "Your next training focus"), styles["Insight"]))
+    story.append(
+        _para(
+            product.get("primary_insight", "Your next training focus"),
+            styles["Insight"],
+        )
+    )
     story.append(_para(product.get("primary_summary", ""), styles["Body"]))
 
     story.append(Spacer(1, 0.25 * cm))
@@ -206,8 +206,8 @@ def generate_runlab_pdf_bytes(report: dict[str, Any]) -> bytes:
     story.append(_para(key_signal.get("detail", ""), styles["Body"]))
 
     actions = product.get("actions", []) or []
-    story.extend(_section_title("What to do next", styles))
-    story.extend(_bullet_list(actions[:2], styles))
+    story.extend(_section_title("What to do next (next 7 days)", styles))
+    story.extend(_bullet_list(actions[:4], styles))
 
     why_points = product.get("why_points", []) or []
     if why_points:

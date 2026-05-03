@@ -69,10 +69,7 @@ def get_signal_category(signal: dict[str, Any]) -> str:
     return SIGNAL_CATEGORY_BY_RULE_ID.get(rule_id, "other")
 
 
-def build_top_signals(
-    signals: list[dict[str, Any]],
-    limit: int = 3,
-) -> list[dict[str, Any]]:
+def build_top_signals(signals: list[dict[str, Any]], limit: int = 3) -> list[dict[str, Any]]:
     if not signals:
         return []
 
@@ -117,14 +114,10 @@ def build_summary_line(metrics: dict[str, Any], focus: dict[str, Any]) -> str:
     return f"{title}. {summary}"
 
 
-def build_decision(
-    focus: dict[str, Any],
-    hierarchy: dict[str, Any],
-) -> dict[str, str]:
+def build_decision(focus: dict[str, Any], hierarchy: dict[str, Any]) -> dict[str, str]:
     secondary = focus.get("secondary_focus") or "Keep every other lever stable"
     supportive = hierarchy.get("supportive", [])
     maintain = supportive[0]["label"] if supportive else "Current healthy elements"
-
     plan = focus.get("next_week_plan", {})
     avoid = plan.get("avoid", "changing several levers at once")
 
@@ -136,10 +129,7 @@ def build_decision(
     }
 
 
-def build_next_week_rows(
-    metrics: dict[str, Any],
-    focus: dict[str, Any],
-) -> list[dict[str, str]]:
+def build_next_week_rows(metrics: dict[str, Any], focus: dict[str, Any]) -> list[dict[str, str]]:
     plan = focus.get("next_week_plan", {})
 
     target_km_range = plan.get("target_km_range", (0, 0))
@@ -184,14 +174,9 @@ def build_next_week_rows(
 
 def unpack_balance_result(result: Any) -> tuple[pd.DataFrame, int]:
     if isinstance(result, tuple) and len(result) >= 2:
-        balance_df = result[0]
-        total_run_days = int(result[1] or 0)
-        return balance_df, total_run_days
+        return result[0], int(result[1] or 0)
 
-    raise ValueError(
-        "build_balance_comparison_df must return at least "
-        "(balance_df, total_run_days)."
-    )
+    raise ValueError("build_balance_comparison_df must return (balance_df, total_run_days).")
 
 
 def build_current_overview(metrics: dict[str, Any]) -> str:
@@ -211,56 +196,44 @@ def build_current_overview(metrics: dict[str, Any]) -> str:
     )
 
 
-def build_primary_actions(focus: dict[str, Any]) -> list[str]:
-    prescription = focus.get("prescription", [])
-    if prescription:
-        return [str(step) for step in prescription[:2]]
-
+def build_key_signal_detail(metrics: dict[str, Any], focus: dict[str, Any]) -> str:
     primary_key = str(focus.get("primary_key", "")).lower()
+    weekly_km = round(_num(metrics.get("recent_avg_weekly_km")), 1)
+    run_days = round(_num(metrics.get("days_with_run_last_28")) / 4.0, 1)
+    threshold = int(metrics.get("threshold_sessions_last_28", 0) or 0)
+    vo2 = int(metrics.get("vo2_sessions_last_28", 0) or 0)
+    races = int(metrics.get("race_sessions_last_28", 0) or 0)
+    long_runs = int(metrics.get("long_runs_last_28", 0) or 0)
 
-    fallback_actions = {
-        "consistency": [
-            "Build toward a more repeatable weekly running rhythm.",
-            "Keep the intensity controlled until the frequency is stable.",
-        ],
-        "volume": [
-            "Add easy aerobic volume gradually over the next block.",
-            "Keep quality sessions stable while the base improves.",
-        ],
-        "aerobic_support": [
-            "Support existing hard sessions with more easy running.",
-            "Avoid adding another high-intensity session for now.",
-        ],
-        "load_stability": [
-            "Stabilise weekly volume before progressing again.",
-            "Avoid large week-to-week jumps in distance.",
-        ],
-        "long_run": [
-            "Make one comfortable long run a weekly anchor.",
-            "Keep the long run controlled rather than turning it into another hard effort.",
-        ],
-        "threshold": [
-            "Add one controlled threshold session each week.",
-            "Keep it comfortably hard rather than race effort.",
-        ],
-        "quality": [
-            "Add one purposeful faster session each week.",
-            "Keep the rest of the week easy enough to absorb it.",
-        ],
-        "progression": [
-            "Progress one training lever only.",
-            "Avoid changing volume, intensity and long run structure all at once.",
-        ],
-        "maintenance": [
-            "Maintain the current rhythm.",
-            "Progress carefully with small changes only.",
-        ],
-    }
+    if primary_key == "volume":
+        return (
+            f"You are averaging about {weekly_km} km per week. That is the key limiter because "
+            "the aerobic base is not yet strong enough to fully support harder threshold or race-level work."
+        )
 
-    return fallback_actions.get(
-        primary_key,
-        ["Keep the current structure stable.", "Make only one small change at a time."],
-    )
+    if primary_key == "aerobic_support":
+        return (
+            f"RunLab detected {threshold + vo2 + races} quality or race-level efforts in the last 28 days "
+            f"against {weekly_km} km per week. The issue is not lack of effort, but lack of easy volume underneath it."
+        )
+
+    if primary_key == "consistency":
+        return (
+            f"You are averaging about {run_days} run days per week. The main limiter is not session quality yet, "
+            "but whether the weekly rhythm is repeatable enough to build on."
+        )
+
+    if primary_key == "long_run":
+        return (
+            f"RunLab detected {long_runs} long runs in the last 28 days. That makes endurance durability the clearest missing anchor."
+        )
+
+    if primary_key == "threshold":
+        return (
+            f"RunLab detected {threshold} threshold sessions in the last 28 days. The missing link is controlled sustained work, not another race-level effort."
+        )
+
+    return focus.get("detail", "This is the clearest limiter in the recent training pattern.")
 
 
 def build_product_report(
@@ -279,9 +252,9 @@ def build_product_report(
         "current_overview": build_current_overview(metrics),
         "key_signal": {
             "title": focus.get("limiter", "Primary limiter"),
-            "detail": focus.get("detail", diagnosis_summary),
+            "detail": build_key_signal_detail(metrics, focus),
         },
-        "actions": build_primary_actions(focus),
+        "actions": focus.get("prescription", [])[:4],
         "why_points": why_points[:3],
         "coach_explanation": ai_text,
         "supporting_signals": [
@@ -292,12 +265,12 @@ def build_product_report(
             }
             for signal in top_signals[:3]
         ],
+        "focus": focus,
     }
 
 
 def generate_runlab_report(df_raw: pd.DataFrame) -> dict[str, Any]:
     df = clean_data(df_raw)
-
     weekly = weekly_summary(df)
     metrics = overall_metrics(df, weekly)
     signals = derive_signals(metrics)
@@ -306,9 +279,7 @@ def generate_runlab_report(df_raw: pd.DataFrame) -> dict[str, Any]:
     hierarchy = build_training_hierarchy(metrics, focus)
     top_signals = build_top_signals(signals)
 
-    balance_result = build_balance_comparison_df(df, focus)
-    balance_df, total_run_days = unpack_balance_result(balance_result)
-
+    balance_df, total_run_days = unpack_balance_result(build_balance_comparison_df(df, focus))
     detailed_balance_df = build_detailed_balance_df(df, focus)
     balance_note = build_balance_interpretation(balance_df, focus, total_run_days)
 
@@ -319,9 +290,7 @@ def generate_runlab_report(df_raw: pd.DataFrame) -> dict[str, Any]:
     diagnosis_title, diagnosis_summary = build_focus_diagnosis(focus, metrics)
     why_points = build_why_this_matters(metrics, top_signals, focus)
     supporting_metrics = build_supporting_metrics(metrics)
-
     ai_text = generate_ai_explanation(metrics, signals, focus)
-    used_ai = True
 
     product_report = build_product_report(
         metrics=metrics,
@@ -346,7 +315,7 @@ def generate_runlab_report(df_raw: pd.DataFrame) -> dict[str, Any]:
         "why_points": why_points,
         "supporting_metrics": supporting_metrics,
         "ai_text": ai_text,
-        "used_ai": used_ai,
+        "used_ai": True,
         "balance_df": balance_df,
         "detailed_balance_df": detailed_balance_df,
         "balance_note": balance_note,

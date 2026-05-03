@@ -5,55 +5,55 @@ from typing import Any
 
 FOCUS_RULES: dict[str, dict[str, Any]] = {
     "consistency": {
-        "headline": "Build a repeatable running rhythm first",
+        "headline": "Your training rhythm is not repeatable enough yet",
         "limiter": "Consistency",
         "detail": "Training frequency is the main limiter. The next block should make the week more repeatable before adding extra volume or intensity.",
         "timeframe": "2-3 weeks",
     },
     "volume": {
-        "headline": "Build aerobic volume before adding more intensity",
+        "headline": "Your training is limited by aerobic volume, not intensity",
         "limiter": "Aerobic volume",
         "detail": "Weekly volume is the clearest limiter. The next gain is more likely to come from easy aerobic running than from another hard session.",
         "timeframe": "3-4 weeks",
     },
     "aerobic_support": {
-        "headline": "Support your quality work with more easy volume",
+        "headline": "Your hard sessions need more aerobic support",
         "limiter": "Aerobic support",
         "detail": "Harder running is already present, but it needs more easy running underneath it. The priority is to make the quality work better supported, not harder.",
         "timeframe": "3-6 weeks",
     },
     "load_stability": {
-        "headline": "Stabilise your training load",
+        "headline": "Your training load needs to stabilise before progressing",
         "limiter": "Training load stability",
         "detail": "Recent volume has dipped or become too variable. Rebuild a predictable week before pushing fitness harder.",
         "timeframe": "2-3 weeks",
     },
     "long_run": {
-        "headline": "Make the long run a weekly anchor",
+        "headline": "Your long run is the missing endurance anchor",
         "limiter": "Long run stimulus",
         "detail": "The long run is missing or inconsistent. A regular comfortable long run will improve durability and support the rest of the week.",
         "timeframe": "3-4 weeks",
     },
     "threshold": {
-        "headline": "Add a controlled threshold stimulus",
+        "headline": "Your training needs a controlled threshold stimulus",
         "limiter": "Threshold support",
         "detail": "Threshold work is missing or too irregular. A controlled threshold session will improve sustained pace without the fatigue cost of another race-level effort.",
         "timeframe": "3-4 weeks",
     },
     "quality": {
-        "headline": "Add one clear quality stimulus",
+        "headline": "Your week needs one clearer quality stimulus",
         "limiter": "Quality stimulus",
         "detail": "The base is present, but the week needs one purposeful faster session to create a clearer performance signal.",
         "timeframe": "3-4 weeks",
     },
     "progression": {
-        "headline": "Create one clear progression signal",
+        "headline": "Your structure is sound, but progression is too static",
         "limiter": "Progression",
         "detail": "The pattern is broadly sound, but too many levers are static. The next block should progress one thing only.",
         "timeframe": "2-4 weeks",
     },
     "maintenance": {
-        "headline": "Maintain the current rhythm and progress carefully",
+        "headline": "Your current rhythm is healthy, so progress carefully",
         "limiter": "No major limiter",
         "detail": "The pattern is broadly healthy. The next step is small, controlled progression rather than a major correction.",
         "timeframe": "2-4 weeks",
@@ -125,7 +125,9 @@ def build_limiter_scores(metrics: dict[str, Any]) -> dict[str, int]:
     weekly_km = _num(metrics.get("recent_avg_weekly_km"))
 
     threshold_sessions = _int(metrics.get("threshold_sessions_last_28"))
-    vo2_sessions = _int(metrics.get("vo2_sessions_last_28")) + _int(metrics.get("race_sessions_last_28"))
+    vo2_sessions = _int(metrics.get("vo2_sessions_last_28")) + _int(
+        metrics.get("race_sessions_last_28")
+    )
     quality_sessions = threshold_sessions + vo2_sessions
 
     long_runs = _int(metrics.get("long_runs_last_28"))
@@ -333,58 +335,77 @@ def build_prescription(metrics: dict[str, Any], focus: dict[str, Any]) -> list[s
     plan = focus["next_week_plan"]
     km_low, km_high = plan["target_km_range"]
     primary = focus.get("primary_key")
+    run_days = plan.get("run_days", "5-6")
 
     if primary == "consistency":
         return [
-            f"Run {plan['run_days']} days if recovery allows.",
+            f"Run {run_days} days this week, even if some runs are short.",
             f"Keep total volume controlled at around {km_low}-{km_high} km.",
+            "Keep every run easy. Do not include any structured hard session this week.",
+            "The goal is to make the week repeatable, not impressive.",
         ]
 
     if primary == "volume":
         return [
-            f"Build toward {km_low}-{km_high} km, mostly through easy running.",
-            "Keep intensity stable while the aerobic base improves.",
+            f"Run {run_days} days this week.",
+            f"Increase total volume to {km_low}-{km_high} km by adding easy running, not by extending hard sessions.",
+            "Include one controlled threshold session, such as 3 x 8 min comfortably hard with 2 min jog.",
+            "Keep all other runs easy. Do not add a second hard session.",
         ]
 
     if primary == "aerobic_support":
         return [
-            f"Build toward {km_low}-{km_high} km with more easy running.",
-            "Keep one quality session, but do not add another hard day yet.",
+            f"Run {run_days} days this week.",
+            f"Build volume to {km_low}-{km_high} km, with most running at easy effort.",
+            "Keep one quality session only, preferably threshold such as 4 x 6-8 min comfortably hard.",
+            "Do not include races or VO2 sessions this week.",
         ]
 
     if primary == "load_stability":
         return [
-            f"Keep next week within roughly {km_low}-{km_high} km.",
-            "Prioritise a repeatable week over a bigger training stimulus.",
+            f"Keep total volume stable at {km_low}-{km_high} km this week.",
+            "Repeat a similar structure to last week rather than increasing load.",
+            "Keep quality controlled with a maximum of one session.",
+            "Avoid changing multiple things at once.",
         ]
 
     if primary == "long_run":
         return [
-            "Include one comfortable long run this week.",
-            "Keep the long run controlled rather than turning it into another hard effort.",
+            "Include one long run this week, ideally 75-90 minutes at comfortable effort.",
+            "Keep the pace easy enough that you could continue beyond the planned duration.",
+            "Do not turn the long run into a progression run or race effort.",
+            "Keep other quality sessions minimal while this becomes consistent.",
         ]
 
     if primary == "threshold":
         return [
-            "Add one controlled threshold session.",
-            "Keep it comfortably hard, not race effort.",
+            "Add one controlled threshold session this week.",
+            "Use a repeatable format such as 3 x 8 min, 4 x 6 min, or 20 min continuous.",
+            "Finish feeling controlled, not exhausted.",
+            "Keep the rest of the week easy so the session drives adaptation.",
         ]
 
     if primary == "quality":
         return [
-            "Add one purposeful faster session.",
-            "Keep the rest of the week easy enough to absorb it.",
+            "Add one faster session this week.",
+            "Example: 8-10 x 400m with full recovery, or 5 x 800m at controlled effort.",
+            "Keep the session structured. Do not turn it into an all-out effort.",
+            "Keep the rest of the week easy.",
         ]
 
     if primary == "progression":
         return [
-            "Progress one lever only this week.",
-            "Avoid increasing volume, intensity and long-run load at the same time.",
+            "Progress one thing only this week.",
+            "Choose either a small volume increase, a slightly longer long run, or one clearer quality session.",
+            "Do not increase volume and intensity together.",
+            "Review how the body responds before progressing again.",
         ]
 
     return [
-        "Maintain the current rhythm.",
-        "Make only one small progression if recovery feels good.",
+        "Maintain the current structure this week.",
+        "Make only one small progression if everything feels good.",
+        "Keep hard days clearly separated from easy days.",
+        "Avoid adding unnecessary intensity.",
     ]
 
 

@@ -79,7 +79,7 @@ RULES:
 - Do not override the RunLab decision
 - Do not name athletes
 - No em dashes
-- 110-160 words total
+- 80-120 words total
 """
     return prompt.strip()
 
@@ -99,9 +99,10 @@ def fallback_explanation(metrics: dict, signals: list[dict], focus: dict) -> str
 
     if primary_key in {"volume", "aerobic_support"}:
         return (
-            f"{pattern} RunLab is pointing toward {focus_text} because the harder work needs a stronger aerobic base underneath it. "
-            "The aim is not to make the week harder, but to make the existing quality work easier to absorb.\n\n"
-            "Adding more intensity now would likely raise fatigue faster than fitness. A controlled increase in easy running should improve durability, recovery between sessions, and the ability to sustain faster pace later. Keep the change small enough that the key sessions remain consistent."
+            f"{pattern} The main issue is not lack of effort, but lack of aerobic support. "
+            "The hard sessions are present, but they need more easy running underneath them to become more productive.\n\n"
+            "Over the next few weeks, increase easy volume while keeping quality controlled. "
+            "This should improve durability, recovery between sessions, and the base that supports threshold and race pace work."
         )
 
     if primary_key == "threshold":
