@@ -22,15 +22,16 @@ def format_frequency(count: int) -> str:
 def build_structured_summary(metrics: dict) -> dict:
     threshold_sessions = int(metrics.get("threshold_sessions_last_28", 0) or 0)
     vo2_sessions = int(metrics.get("vo2_sessions_last_28", 0) or 0)
+    race_sessions = int(metrics.get("race_sessions_last_28", 0) or 0)
     long_runs = int(metrics.get("long_runs_last_28", 0) or 0)
     days_with_run_last_28 = int(metrics.get("days_with_run_last_28", 0) or 0)
 
     return {
         "run_days_per_week": round(days_with_run_last_28 / 4.0, 2),
-        "recent_avg_weekly_km": metrics.get("recent_avg_weekly_km", 0),
+        "recent_avg_weekly_km": round(float(metrics.get("recent_avg_weekly_km", 0) or 0), 1),
         "volume_trend": metrics.get("volume_trend", "Unknown"),
         "threshold_freq_text": format_frequency(threshold_sessions),
-        "vo2_freq_text": format_frequency(vo2_sessions),
+        "vo2_freq_text": format_frequency(vo2_sessions + race_sessions),
         "long_run_freq_text": format_frequency(long_runs),
     }
 
@@ -39,84 +40,101 @@ def build_prompt(metrics: dict, signals: list[dict], focus: dict) -> str:
     summary = build_structured_summary(metrics)
 
     prompt = f"""
-You are an experienced endurance running coach.
+You are an experienced endurance running coach writing for RunLab.
 
-The RunLab decision engine has already identified the correct training focus.
-Your job is to explain WHY this is the right decision.
+The RunLab decision engine has already chosen the recommendation.
+Your job is only to explain the decision in a clear, practical way.
 
 Write exactly TWO short paragraphs.
 
 PARAGRAPH 1:
-- Describe the current training pattern
-- Identify the main limiter
-- Explain how volume, intensity, and long-run structure are interacting
+- Describe the recent training pattern
+- Explain the main limiter
+- Keep it specific to the data
 
 PARAGRAPH 2:
-- Explain why THIS recommendation is correct right now
-- Explicitly explain why NOT:
-  - adding more intensity
-  - changing multiple training levers at once
-  - chasing short-term fitness gains
-- Link this to aerobic development and fatigue cost
-- Explain how this improves 5K performance
+- Explain why the recommendation is the right next step
+- Explain why adding more intensity or changing several things at once is not the best move
+- Link the advice to aerobic development, fatigue cost, and sustainable performance improvement
 - Include one practical caution
 
 DATA:
-Run days/week: {summary["run_days_per_week"]}
+Run days per week: {summary["run_days_per_week"]}
 Weekly km: {summary["recent_avg_weekly_km"]}
 Volume trend: {summary["volume_trend"]}
-Threshold: {summary["threshold_freq_text"]}
-VO2: {summary["vo2_freq_text"]}
-Long runs: {summary["long_run_freq_text"]}
+Threshold frequency: {summary["threshold_freq_text"]}
+VO2 or race-level frequency: {summary["vo2_freq_text"]}
+Long run frequency: {summary["long_run_freq_text"]}
 
-FOCUS:
-{focus.get("headline", "")}
+RUNLAB FOCUS:
+Headline: {focus.get("headline", "")}
+Limiter: {focus.get("limiter", "")}
+Detail: {focus.get("detail", "")}
 
 RULES:
 - No bullet points
-- No fluff
-- Be specific and practical
-- Avoid repeating the recommendation word-for-word
+- No hype
+- No generic coaching cliches
+- Do not say "as an AI"
 - Do not override the RunLab decision
-- No named references
+- Do not name athletes
 - No em dashes
-- 120-180 words total
+- 110-160 words total
 """
     return prompt.strip()
 
 
 def fallback_explanation(metrics: dict, signals: list[dict], focus: dict) -> str:
     summary = build_structured_summary(metrics)
-    focus_text = focus.get("headline", "the current recommendation")
+    primary_key = str(focus.get("primary_key", "")).lower()
+    focus_text = focus.get("headline", "the current recommendation").lower()
+
+    pattern = (
+        f"The recent pattern is around {summary['run_days_per_week']} run days and "
+        f"{summary['recent_avg_weekly_km']} km per week, with "
+        f"{summary['threshold_freq_text']} of threshold work, "
+        f"{summary['vo2_freq_text']} at VO2 or race-level effort, and "
+        f"{summary['long_run_freq_text']}."
+    )
+
+    if primary_key in {"volume", "aerobic_support"}:
+        return (
+            f"{pattern} RunLab is pointing toward {focus_text} because the harder work needs a stronger aerobic base underneath it. "
+            "The aim is not to make the week harder, but to make the existing quality work easier to absorb.\n\n"
+            "Adding more intensity now would likely raise fatigue faster than fitness. A controlled increase in easy running should improve durability, recovery between sessions, and the ability to sustain faster pace later. Keep the change small enough that the key sessions remain consistent."
+        )
+
+    if primary_key == "threshold":
+        return (
+            f"{pattern} RunLab is pointing toward {focus_text} because sustained controlled work is the missing link between easy running and harder intervals.\n\n"
+            "Another race-level effort would add stress, but it would not solve the main gap. A threshold session gives a repeatable stimulus with a lower fatigue cost, helping improve the pace that can be sustained without turning the whole week into a recovery problem."
+        )
+
+    if primary_key == "long_run":
+        return (
+            f"{pattern} RunLab is pointing toward {focus_text} because the endurance anchor is not yet reliable enough.\n\n"
+            "The long run supports durability, aerobic development, and recovery from faster work. The caution is to keep it comfortable rather than chasing pace. The value comes from making it repeatable, not from making it another hard session."
+        )
+
+    if primary_key == "consistency":
+        return (
+            f"{pattern} RunLab is pointing toward {focus_text} because the week needs a more repeatable rhythm before load is increased.\n\n"
+            "Bigger individual sessions are less useful if the weekly pattern is not stable. Build frequency first, keep the effort controlled, and only progress volume or intensity once the rhythm feels sustainable."
+        )
+
+    if primary_key == "load_stability":
+        return (
+            f"{pattern} RunLab is pointing toward {focus_text} because the recent load is not stable enough to interpret clearly.\n\n"
+            "A predictable week makes adaptation easier to judge. Rather than pushing another stimulus, the better next step is to hold the load steady, protect recovery, and rebuild confidence in the rhythm."
+        )
 
     return (
-        "The current pattern shows some useful training structure, but the main limiter is still "
-        "how well the aerobic base supports the harder work. "
-        f"With around {summary['recent_avg_weekly_km']} km per week and "
-        f"{summary['run_days_per_week']} run days, the system is pointing toward "
-        f"{focus_text.lower()}. That means the next gain is more likely to come from better support "
-        "around the quality sessions than from simply making the hard work harder.\n\n"
-        "Adding more intensity now would probably increase fatigue faster than fitness. Changing too many "
-        "levers at once would also make it harder to know what is actually working. A more controlled block "
-        "builds aerobic capacity, improves recovery between sessions, and helps you sustain faster pace for "
-        "longer, which is directly relevant to 5K performance. Keep the next step gradual and reassess after "
-        "a stable block."
+        f"{pattern} RunLab is pointing toward {focus_text} because it is the clearest next lever in the recent training pattern.\n\n"
+        "The aim is to change one thing at a time so the response is easy to judge. Adding more intensity or changing several levers at once would make it harder to know what is working and could raise fatigue unnecessarily."
     )
 
 
 def generate_ai_explanation(metrics: dict, signals: list[dict], focus: dict) -> str:
-    """
-    Safe AI explanation pattern.
-
-    The deterministic RunLab decision engine decides the recommendation.
-    This function only explains that recommendation.
-
-    Behaviour:
-    1. Build a fallback explanation first
-    2. Try the OpenAI call with a short timeout
-    3. If the API fails or is slow, return the fallback
-    """
-
     explanation = fallback_explanation(metrics, signals, focus)
 
     if not OPENAI_API_KEY:
@@ -133,8 +151,8 @@ def generate_ai_explanation(metrics: dict, signals: list[dict], focus: dict) -> 
                     "content": prompt,
                 }
             ],
-            max_tokens=260,
-            temperature=0.4,
+            max_tokens=240,
+            temperature=0.35,
         )
 
         ai_text = response.choices[0].message.content

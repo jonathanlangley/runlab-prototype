@@ -91,8 +91,7 @@ def build_top_signals(
         matches = [
             signal
             for signal in sorted_signals
-            if get_signal_category(signal) == category
-            and id(signal) not in used_ids
+            if get_signal_category(signal) == category and id(signal) not in used_ids
         ]
 
         if matches:
@@ -184,13 +183,6 @@ def build_next_week_rows(
 
 
 def unpack_balance_result(result: Any) -> tuple[pd.DataFrame, int]:
-    """
-    Handles both old and newer balance return shapes.
-
-    Expected:
-    - old/new stable shape: (balance_df, total_run_days)
-    - possible expanded shape: (balance_df, total_run_days, ...)
-    """
     if isinstance(result, tuple) and len(result) >= 2:
         balance_df = result[0]
         total_run_days = int(result[1] or 0)
@@ -200,6 +192,107 @@ def unpack_balance_result(result: Any) -> tuple[pd.DataFrame, int]:
         "build_balance_comparison_df must return at least "
         "(balance_df, total_run_days)."
     )
+
+
+def build_current_overview(metrics: dict[str, Any]) -> str:
+    run_days = round(_num(metrics.get("days_with_run_last_28")) / 4.0, 1)
+    weekly_km = round(_num(metrics.get("recent_avg_weekly_km")), 1)
+    threshold = int(metrics.get("threshold_sessions_last_28", 0) or 0)
+    vo2 = int(metrics.get("vo2_sessions_last_28", 0) or 0)
+    races = int(metrics.get("race_sessions_last_28", 0) or 0)
+    long_runs = int(metrics.get("long_runs_last_28", 0) or 0)
+    volume_trend = str(metrics.get("volume_trend", "flat")).lower()
+
+    return (
+        f"You are averaging around {run_days} run days and {weekly_km} km per week. "
+        f"Over the last 28 days, RunLab detected {threshold} threshold sessions, "
+        f"{vo2 + races} VO2 or race-level efforts, and {long_runs} long runs. "
+        f"Your recent volume trend is {volume_trend}."
+    )
+
+
+def build_primary_actions(focus: dict[str, Any]) -> list[str]:
+    prescription = focus.get("prescription", [])
+    if prescription:
+        return [str(step) for step in prescription[:2]]
+
+    primary_key = str(focus.get("primary_key", "")).lower()
+
+    fallback_actions = {
+        "consistency": [
+            "Build toward a more repeatable weekly running rhythm.",
+            "Keep the intensity controlled until the frequency is stable.",
+        ],
+        "volume": [
+            "Add easy aerobic volume gradually over the next block.",
+            "Keep quality sessions stable while the base improves.",
+        ],
+        "aerobic_support": [
+            "Support existing hard sessions with more easy running.",
+            "Avoid adding another high-intensity session for now.",
+        ],
+        "load_stability": [
+            "Stabilise weekly volume before progressing again.",
+            "Avoid large week-to-week jumps in distance.",
+        ],
+        "long_run": [
+            "Make one comfortable long run a weekly anchor.",
+            "Keep the long run controlled rather than turning it into another hard effort.",
+        ],
+        "threshold": [
+            "Add one controlled threshold session each week.",
+            "Keep it comfortably hard rather than race effort.",
+        ],
+        "quality": [
+            "Add one purposeful faster session each week.",
+            "Keep the rest of the week easy enough to absorb it.",
+        ],
+        "progression": [
+            "Progress one training lever only.",
+            "Avoid changing volume, intensity and long run structure all at once.",
+        ],
+        "maintenance": [
+            "Maintain the current rhythm.",
+            "Progress carefully with small changes only.",
+        ],
+    }
+
+    return fallback_actions.get(
+        primary_key,
+        ["Keep the current structure stable.", "Make only one small change at a time."],
+    )
+
+
+def build_product_report(
+    metrics: dict[str, Any],
+    focus: dict[str, Any],
+    top_signals: list[dict[str, Any]],
+    why_points: list[str],
+    ai_text: str,
+) -> dict[str, Any]:
+    diagnosis_title, diagnosis_summary = build_focus_diagnosis(focus, metrics)
+
+    return {
+        "title": "RunLab Performance Report",
+        "primary_insight": diagnosis_title,
+        "primary_summary": diagnosis_summary,
+        "current_overview": build_current_overview(metrics),
+        "key_signal": {
+            "title": focus.get("limiter", "Primary limiter"),
+            "detail": focus.get("detail", diagnosis_summary),
+        },
+        "actions": build_primary_actions(focus),
+        "why_points": why_points[:3],
+        "coach_explanation": ai_text,
+        "supporting_signals": [
+            {
+                "title": signal.get("title", ""),
+                "detail": signal.get("detail", ""),
+                "priority": signal.get("priority", ""),
+            }
+            for signal in top_signals[:3]
+        ],
+    }
 
 
 def generate_runlab_report(df_raw: pd.DataFrame) -> dict[str, Any]:
@@ -230,6 +323,14 @@ def generate_runlab_report(df_raw: pd.DataFrame) -> dict[str, Any]:
     ai_text = generate_ai_explanation(metrics, signals, focus)
     used_ai = True
 
+    product_report = build_product_report(
+        metrics=metrics,
+        focus=focus,
+        top_signals=top_signals,
+        why_points=why_points,
+        ai_text=ai_text,
+    )
+
     return {
         "df": df,
         "weekly": weekly,
@@ -254,4 +355,5 @@ def generate_runlab_report(df_raw: pd.DataFrame) -> dict[str, Any]:
         "target_weekly_structure": target_structure,
         "structure_gaps": structure_gaps,
         "next_week_rows": build_next_week_rows(metrics, focus),
+        "product_report": product_report,
     }
