@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import base64
 from html import escape
 from pathlib import Path
 from textwrap import dedent
 
 import pandas as pd
 import streamlit as st
+import base64
+import streamlit.components.v1 as components
 
 from src.charts import build_weekly_distance_chart, plot_training_balance_with_counts
 from src.pdf_generator import generate_runlab_pdf_bytes
@@ -109,16 +110,15 @@ def render_pdf_preview(pdf_bytes: bytes, height: int = 760) -> None:
     base64_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
 
     pdf_display = f"""
-        <iframe
-            src="data:application/pdf;base64,{base64_pdf}"
-            width="100%"
-            height="{height}"
-            type="application/pdf">
-        </iframe>
+    <iframe
+        src="data:application/pdf;base64,{base64_pdf}"
+        width="100%"
+        height="{height}px"
+        style="border: none;">
+    </iframe>
     """
 
-    st.markdown(pdf_display, unsafe_allow_html=True)
-
+    components.html(pdf_display, height=height)
 
 def read_input_data(mode: str, uploaded_file, sample_option: str) -> pd.DataFrame | None:
     if mode == "Upload your own data" and uploaded_file is not None:
@@ -469,9 +469,6 @@ def render_product_report(report: dict, unlocked: bool = True) -> None:
         file_name="runlab_performance_report.pdf",
         mime="application/pdf",
     )
-
-    with st.expander("Preview PDF report", expanded=False):
-        render_pdf_preview(pdf_bytes)
 
     supporting = product.get("supporting_signals", []) or []
     if supporting:
