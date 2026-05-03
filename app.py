@@ -323,7 +323,7 @@ def render_locked_report_message() -> None:
         <div class='locked-card'>
             <div class='section-title'>Unlock your full RunLab Performance Report</div>
             <div class='body-copy'>
-                Your headline insight and key signal are shown above. Unlock the full report to view:
+                Your headline insight and key signal are shown above. Request beta access to view:
             </div>
             <div class='support-box'>Your specific next training actions</div>
             <div class='support-box'>The full coach-style explanation</div>
@@ -677,7 +677,7 @@ def main() -> None:
     if mode == "Upload your own data":
         invite_code = st.text_input(
             "Private beta code",
-            placeholder="Enter beta access code"
+            placeholder="Enter beta access code",
         ).strip()
         valid_beta_code = invite_code in VALID_BETA_CODES
 
@@ -713,13 +713,12 @@ def main() -> None:
         return
 
     has_paid = False
-
     unlocked = mode == "Try demo scenarios" or valid_beta_code or has_paid
 
     if mode == "Upload your own data" and not unlocked:
         st.info(
             "Upload preview mode: your headline insight is shown below. "
-            "A beta code or future payment unlocks the full report."
+            "Request beta access to unlock the full report."
         )
         st.link_button("Join the beta list", BETA_SIGNUP_URL)
 
