@@ -27,12 +27,29 @@ def render_app_intro() -> None:
 
 
 def render_how_runlab_thinks() -> None:
-    st.markdown("## How RunLab Thinks")
+    st.markdown("## How RunLab Works")
     st.markdown(
         """
         <div class='body-copy'>
             RunLab is designed as a decision-support system. The aim is to move from raw training history
             to a clear, explainable next focus.
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        """
+        <div class='flow-strip'>
+            <span>Training Data</span>
+            <span>→</span>
+            <span>Metrics</span>
+            <span>→</span>
+            <span>Signals</span>
+            <span>→</span>
+            <span>Decision Support</span>
+            <span>→</span>
+            <span>AI Explanation</span>
         </div>
         """,
         unsafe_allow_html=True,
@@ -46,12 +63,12 @@ def render_how_runlab_thinks() -> None:
         ("5", "AI Explanation", "Plain-English context layered on top of the deterministic training logic."),
     ]
 
-    cols = st.columns(5)
-    for col, (step, title, detail) in zip(cols, flow_items):
-        with col:
+    cols = st.columns(2)
+    for index, (step, title, detail) in enumerate(flow_items):
+        with cols[index % 2]:
             st.markdown(
                 f"""
-                <div class='flow-card'>
+                <div class='flow-card compact'>
                     <div class='flow-step'>Step {html_text(step)}</div>
                     <div class='flow-title'>{html_text(title)}</div>
                     <div class='small-note'>{html_text(detail)}</div>
@@ -101,7 +118,6 @@ def render_trust_and_explainability() -> None:
 
 
 def render_exploring_next() -> None:
-    st.markdown("---")
     st.markdown("## Exploring Next")
     st.markdown(
         """

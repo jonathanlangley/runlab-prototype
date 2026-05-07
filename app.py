@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import pandas as pd
 import streamlit as st
 
 from src.report_engine import EmptyDataError, generate_runlab_report
@@ -14,8 +13,65 @@ from src.ui_info_sections import (
     render_strava_coming_soon,
     render_trust_and_explainability,
 )
-from src.ui_report_sections import render_report
+from src.ui_report_sections import (
+    render_product_report,
+    render_supporting_analysis,
+)
 from src.ui_styles import render_css
+
+
+def generate_report_from_input(
+    mode: str,
+    uploaded_file,
+    sample_option: str,
+    enable_auto: bool,
+    profile: dict,
+) -> dict | None:
+    df_raw = read_input_data(mode, uploaded_file, sample_option)
+
+    if df_raw is None:
+        return None
+
+    df_input, classification_error = apply_auto_classification(
+        df_raw,
+        enabled=(mode == "Upload your own data" and enable_auto),
+        profile=profile,
+    )
+
+    if classification_error:
+        st.warning(classification_error)
+
+    try:
+        return generate_runlab_report(df_input)
+    except EmptyDataError as exc:
+        st.error(str(exc))
+        st.info(
+            "RunLab analyses running activities. Make sure your CSV contains rows where "
+            "`activity_type` is set to `run` or similar, with positive `distance_km` and "
+            "`duration_min` values."
+        )
+        return None
+    except ValueError as exc:
+        st.error(f"Your CSV could not be read: {exc}")
+        st.info(
+            "RunLab expects at minimum: `date`, `distance_km`, `duration_min`. "
+            "Optional: `avg_hr`, `activity_type`, `workout_type`, `title`, `description`."
+        )
+        return None
+    except Exception as exc:
+        st.error(f"RunLab could not generate a report: {exc}")
+        return None
+
+
+def render_waiting_state() -> None:
+    tab_how, tab_next = st.tabs(["How RunLab Works", "Exploring Next"])
+
+    with tab_how:
+        render_how_runlab_thinks()
+        render_trust_and_explainability()
+
+    with tab_next:
+        render_exploring_next()
 
 
 def main() -> None:
@@ -31,9 +87,7 @@ def main() -> None:
 
     st.title("RunLab Beta")
     render_app_intro()
-    render_how_runlab_thinks()
 
-    st.markdown("---")
     st.markdown("### Choose your data source")
 
     mode = st.radio(
@@ -43,9 +97,20 @@ def main() -> None:
     )
 
     if mode == "Strava Sync (Coming Soon)":
-        render_strava_coming_soon()
-        render_trust_and_explainability()
-        render_exploring_next()
+        tab_overview, tab_how, tab_next = st.tabs(
+            ["Strava Sync", "How RunLab Works", "Exploring Next"]
+        )
+
+        with tab_overview:
+            render_strava_coming_soon()
+
+        with tab_how:
+            render_how_runlab_thinks()
+            render_trust_and_explainability()
+
+        with tab_next:
+            render_exploring_next()
+
         return
 
     sample_option = st.selectbox(
@@ -70,43 +135,20 @@ def main() -> None:
 
         if uploaded_file is None:
             st.info("Upload a CSV to generate a RunLab Performance Report.")
+            render_waiting_state()
             return
     else:
         st.caption(DEMO_DESCRIPTIONS[sample_option])
 
-    df_raw = read_input_data(mode, uploaded_file, sample_option)
-
-    if df_raw is None:
-        return
-
-    df_input, classification_error = apply_auto_classification(
-        df_raw,
-        enabled=(mode == "Upload your own data" and enable_auto),
+    report = generate_report_from_input(
+        mode=mode,
+        uploaded_file=uploaded_file,
+        sample_option=sample_option,
+        enable_auto=enable_auto,
         profile=profile,
     )
 
-    if classification_error:
-        st.warning(classification_error)
-
-    try:
-        report = generate_runlab_report(df_input)
-    except EmptyDataError as exc:
-        st.error(str(exc))
-        st.info(
-            "RunLab analyses running activities. Make sure your CSV contains rows where "
-            "`activity_type` is set to `run` or similar, with positive `distance_km` and "
-            "`duration_min` values."
-        )
-        return
-    except ValueError as exc:
-        st.error(f"Your CSV could not be read: {exc}")
-        st.info(
-            "RunLab expects at minimum: `date`, `distance_km`, `duration_min`. "
-            "Optional: `avg_hr`, `activity_type`, `workout_type`, `title`, `description`."
-        )
-        return
-    except Exception as exc:
-        st.error(f"RunLab could not generate a report: {exc}")
+    if report is None:
         return
 
     has_paid = False
@@ -119,10 +161,25 @@ def main() -> None:
         )
         st.link_button("Join the beta list", BETA_SIGNUP_URL)
 
-    render_report(report, unlocked=unlocked)
+    tab_report, tab_analysis, tab_how, tab_next = st.tabs(
+        ["Report", "Supporting Analysis", "How RunLab Works", "Exploring Next"]
+    )
 
-    render_trust_and_explainability()
-    render_exploring_next()
+    with tab_report:
+        render_product_report(report, unlocked=unlocked)
+
+    with tab_analysis:
+        if unlocked:
+            render_supporting_analysis(report)
+        else:
+            st.info("Supporting analysis is available when the full report is unlocked.")
+
+    with tab_how:
+        render_how_runlab_thinks()
+        render_trust_and_explainability()
+
+    with tab_next:
+        render_exploring_next()
 
 
 if __name__ == "__main__":

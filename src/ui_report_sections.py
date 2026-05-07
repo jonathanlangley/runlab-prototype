@@ -282,43 +282,57 @@ def render_product_report(report: dict, unlocked: bool = True) -> None:
         mime="application/pdf",
     )
 
+
+def render_supporting_signals(report: dict) -> None:
+    product = get_product_report(report)
     supporting = product.get("supporting_signals", []) or []
-    if supporting:
-        with st.expander("Supporting signals", expanded=False):
-            for raw_signal in supporting[:3]:
-                signal = normalise_signal(raw_signal)
-                st.markdown(
-                    f"""
-                    <div class='signal-card'>
-                        <div class='section-title'>{html_text(signal["title"])}</div>
-                        <div class='body-copy'>{html_text(signal["detail"])}</div>
-                        <div class='small-note'>Priority: {html_text(signal["priority"])}</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+
+    with st.expander("Supporting signals", expanded=False):
+        if not supporting:
+            st.info("No additional supporting signals were generated for this report.")
+            return
+
+        for raw_signal in supporting[:4]:
+            signal = normalise_signal(raw_signal)
+
+            st.markdown(
+                f"""
+                <div class='signal-card'>
+                    <div class='section-title'>{html_text(signal["title"])}</div>
+                    <div class='body-copy'>{html_text(signal["detail"])}</div>
+                    <div class='small-note'>Priority: {html_text(signal["priority"])}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
 
-def render_next_week_table(report: dict, unlocked: bool = True) -> None:
-    if not unlocked:
-        return
-
+def render_next_week_analysis(report: dict) -> None:
     rows = report.get("next_week_rows", [])
-    if not rows:
-        return
 
     with st.expander("Current vs next week detail", expanded=False):
+        if not rows:
+            st.info(
+                "No next-week detail table is available for this report yet. "
+                "The main recommendation above is still based on the current limiter and supporting signals."
+            )
+            return
+
         st.dataframe(
             pd.DataFrame(rows),
             hide_index=True,
             use_container_width=True,
         )
+
         st.caption(
-            "This stays intentionally simple. RunLab recommends changing the main limiter first and keeping other levers stable."
+            "RunLab recommends changing the primary limiter first while keeping the rest of the structure relatively stable."
         )
 
 
 def render_supporting_analysis(report: dict) -> None:
+    render_supporting_signals(report)
+    render_next_week_analysis(report)
+
     st.markdown(
         "<div class='section-card'><div class='section-title'>Weekly distance trend</div>",
         unsafe_allow_html=True,
@@ -387,12 +401,3 @@ def render_supporting_analysis(report: dict) -> None:
             pd.DataFrame(report.get("signals", [])),
             use_container_width=True,
         )
-
-
-def render_report(report: dict, unlocked: bool = True) -> None:
-    render_product_report(report, unlocked=unlocked)
-    render_next_week_table(report, unlocked=unlocked)
-
-    if unlocked:
-        with st.expander("Deeper supporting analysis", expanded=False):
-            render_supporting_analysis(report)
