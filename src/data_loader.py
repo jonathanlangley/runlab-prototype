@@ -35,8 +35,34 @@ def standardise_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df.rename(columns=rename_dict)
 
 
+def _collapse_duplicate_columns(df: pd.DataFrame, column: str) -> pd.DataFrame:
+    """If `column` appears more than once after rename, keep the first."""
+    locs = [i for i, c in enumerate(df.columns) if c == column]
+    if len(locs) <= 1:
+        return df
+    primary = df.iloc[:, locs[0]]
+    df = df.drop(columns=[column])
+    df[column] = primary
+    return df
+
+
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Clean and validate uploaded running data.
+
+    Raises ValueError if the CSV is missing essential columns
+    (date, distance_km, duration_min).
+
+    Returns an empty DataFrame if the structure is valid but no
+    running activities remain after filtering. Callers are expected
+    to handle the empty case explicitly.
+    """
     df = standardise_columns(df)
+
+    # Collapse any duplicate workout_type / activity_type columns that may
+    # have appeared via column-rename collisions.
+    df = _collapse_duplicate_columns(df, "workout_type")
+    df = _collapse_duplicate_columns(df, "activity_type")
 
     required_defaults = {
         "activity_type": "run",
@@ -70,6 +96,12 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     df = df.dropna(subset=["date", "distance_km", "duration_min"])
     df = df[df["distance_km"] > 0]
     df = df[df["duration_min"] > 0]
+
+    # If no running rows remain, return the empty frame and let the caller
+    # decide how to surface the message to the user. We do NOT raise here
+    # because "no runs found" is a user-facing condition, not a data error.
+    if df.empty:
+        return df.reset_index(drop=True)
 
     df["pace_min_per_km"] = df["duration_min"] / df["distance_km"]
 

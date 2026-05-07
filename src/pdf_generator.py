@@ -161,6 +161,7 @@ def build_metrics_table(metrics: dict[str, Any], styles: dict[str, ParagraphStyl
 def generate_runlab_pdf_bytes(report: dict[str, Any]) -> bytes:
     product = report.get("product_report", {}) or {}
     metrics = report.get("metrics", {}) or {}
+    used_ai = bool(report.get("used_ai", False))
     styles = build_pdf_styles()
 
     buffer = BytesIO()
@@ -177,14 +178,17 @@ def generate_runlab_pdf_bytes(report: dict[str, Any]) -> bytes:
 
     story = []
 
+    # Title block
     story.append(_para("RunLab Performance Report", styles["Title"]))
     story.append(
         _para(
-            "Performance-focused training analysis: data -> signals -> recommendation.",
+            "Performance-focused training analysis: data, signals, recommendation.",
             styles["Subtitle"],
         )
     )
 
+    # SECTION 1: Your limiter
+    story.extend(_section_title("Your limiter", styles))
     story.append(
         _para(
             product.get("primary_insight", "Your next training focus"),
@@ -193,27 +197,31 @@ def generate_runlab_pdf_bytes(report: dict[str, Any]) -> bytes:
     )
     story.append(_para(product.get("primary_summary", ""), styles["Body"]))
 
-    story.append(Spacer(1, 0.25 * cm))
-    story.append(build_metrics_table(metrics, styles))
-    story.append(Spacer(1, 0.25 * cm))
-
-    story.extend(_section_title("Current training overview", styles))
-    story.append(_para(product.get("current_overview", ""), styles["Body"]))
-
+    # SECTION 2: Why this is your limiter
     key_signal = product.get("key_signal", {}) or {}
-    story.extend(_section_title("Key signal", styles))
+    story.extend(_section_title("Why this is your limiter", styles))
     story.append(_para(key_signal.get("title", "Primary limiter"), styles["Body"]))
     story.append(_para(key_signal.get("detail", ""), styles["Body"]))
 
+    # SECTION 3: What to do next
     actions = product.get("actions", []) or []
     story.extend(_section_title("What to do next (next 7 days)", styles))
     story.extend(_bullet_list(actions[:4], styles))
 
+    # SECTION 4: Supporting evidence
+    story.extend(_section_title("Supporting evidence", styles))
+    story.append(build_metrics_table(metrics, styles))
+    story.append(Spacer(1, 0.25 * cm))
+
+    current_overview = product.get("current_overview", "")
+    if current_overview:
+        story.append(_para(current_overview, styles["Body"]))
+
     why_points = product.get("why_points", []) or []
     if why_points:
-        story.extend(_section_title("Why this matters", styles))
         story.extend(_bullet_list(why_points[:3], styles))
 
+    # SECTION 5: Coach-style explanation
     coach_explanation = str(product.get("coach_explanation", "") or "").strip()
     if coach_explanation:
         story.extend(_section_title("Coach-style explanation", styles))
@@ -222,14 +230,19 @@ def generate_runlab_pdf_bytes(report: dict[str, Any]) -> bytes:
         for paragraph in paragraphs[:2]:
             story.append(_para(paragraph, styles["Body"]))
 
+    # Footer note: reflects whether AI ran or fallback ran
     story.append(Spacer(1, 0.35 * cm))
-    story.append(
-        _para(
+    if used_ai:
+        footer_text = (
             "RunLab uses deterministic rules to choose the recommendation. "
-            "The AI layer explains the decision in plain English.",
-            styles["Small"],
+            "The AI layer explains the decision in plain English."
         )
-    )
+    else:
+        footer_text = (
+            "RunLab uses deterministic rules to choose the recommendation. "
+            "This explanation is generated from the same rules."
+        )
+    story.append(_para(footer_text, styles["Small"]))
 
     doc.build(story)
 

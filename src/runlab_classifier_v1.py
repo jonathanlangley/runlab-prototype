@@ -3,6 +3,9 @@ from typing import Any, Dict, Optional
 import pandas as pd
 
 
+VALID_WORKOUT_TYPES = {"easy", "threshold", "vo2", "long run", "race"}
+
+
 def parse_time_to_seconds(time_value: Any) -> Optional[int]:
     if time_value is None or pd.isna(time_value):
         return None
@@ -268,16 +271,109 @@ def classify_workout_type(row: pd.Series, user_profile: Dict[str, Any]) -> Dict[
     }
 
 
-def classify_dataframe(df: pd.DataFrame, user_profile: Dict[str, Any]) -> pd.DataFrame:
-    df = df.copy()
-    if "title" not in df.columns and "activity_name" in df.columns:
-        df["title"] = df["activity_name"]
-    if "title" not in df.columns:
-        df["title"] = ""
-    if "description" not in df.columns:
-        df["description"] = ""
-    classified = pd.DataFrame([classify_workout_type(row, user_profile) for _, row in df.iterrows()], index=df.index)
-    output = pd.concat([df, classified], axis=1)
-    output["primary_type"] = output["workout_type"]
-    output["secondary_type"] = output["sub_type"]
+def _is_missing_workout_type(value: Any) -> bool:
+    """A workout_type value is treated as missing if it is null, blank, or
+    not one of the recognised RunLab labels."""
+    if value is None:
+        return True
+    try:
+        if pd.isna(value):
+            return True
+    except (TypeError, ValueError):
+        pass
+    text = str(value).strip().lower()
+    if text in {"", "nan", "none", "unknown", "n/a"}:
+        return True
+    return text not in VALID_WORKOUT_TYPES
+
+
+def fill_missing_workout_types(df: pd.DataFrame, user_profile: Dict[str, Any]) -> pd.DataFrame:
+    """
+    Fill in workout_type only for rows where it is missing or unknown.
+    Existing valid workout_type values are preserved exactly.
+
+    Guarantees:
+    - Returns a DataFrame with exactly one column named 'workout_type'
+    - Existing valid labels are not overwritten
+    - Adds 'sub_type', 'pace_band' helper columns where they were derived
+    """
+    output = df.copy()
+
+    if "title" not in output.columns and "activity_name" in output.columns:
+        output["title"] = output["activity_name"]
+    if "title" not in output.columns:
+        output["title"] = ""
+    if "description" not in output.columns:
+        output["description"] = ""
+
+    # Ensure a single workout_type column exists. If there are duplicate
+    # workout_type columns (rare but possible from joins), collapse to the
+    # first one.
+    if "workout_type" not in output.columns:
+        output["workout_type"] = pd.NA
+    else:
+        wt_locs = [i for i, col in enumerate(output.columns) if col == "workout_type"]
+        if len(wt_locs) > 1:
+            primary = output.iloc[:, wt_locs[0]]
+            output = output.drop(columns=["workout_type"])
+            output["workout_type"] = primary
+
+    # Identify rows needing classification
+    needs_fill_mask = output["workout_type"].apply(_is_missing_workout_type)
+
+    if not needs_fill_mask.any():
+        return output
+
+    # Classify only the rows that need it
+    rows_to_classify = output.loc[needs_fill_mask]
+    classified_records = [
+        classify_workout_type(row, user_profile) for _, row in rows_to_classify.iterrows()
+    ]
+
+    # Write back only into the missing rows, never overwriting valid values
+    for idx, record in zip(rows_to_classify.index, classified_records):
+        output.at[idx, "workout_type"] = record["workout_type"]
+
+        # Helper columns: only write where they don't already exist for that row
+        for helper_col in ("sub_type", "pace_band"):
+            if helper_col not in output.columns:
+                output[helper_col] = pd.NA
+            if pd.isna(output.at[idx, helper_col]):
+                output.at[idx, helper_col] = record.get(helper_col)
+
     return output
+
+
+def classify_dataframe(df: pd.DataFrame, user_profile: Dict[str, Any]) -> pd.DataFrame:
+    """
+    Backward-compatible classifier: classifies every row regardless of
+    existing workout_type. Prefer fill_missing_workout_types for the app
+    path so user-provided labels are respected.
+
+    Returns a DataFrame with exactly one 'workout_type' column.
+    """
+    output = df.copy()
+    if "title" not in output.columns and "activity_name" in output.columns:
+        output["title"] = output["activity_name"]
+    if "title" not in output.columns:
+        output["title"] = ""
+    if "description" not in output.columns:
+        output["description"] = ""
+
+    classified_records = [classify_workout_type(row, user_profile) for _, row in output.iterrows()]
+    classified_df = pd.DataFrame(classified_records, index=output.index)
+
+    # Drop any pre-existing workout_type / sub_type / helper columns to avoid
+    # duplicate-column collisions when concat'ing.
+    columns_to_replace = [
+        col for col in ("workout_type", "sub_type", "pace_band", "pace_sec_per_km",
+                        "pace_ratio_to_5k", "classification_notes")
+        if col in output.columns
+    ]
+    if columns_to_replace:
+        output = output.drop(columns=columns_to_replace)
+
+    result = pd.concat([output, classified_df], axis=1)
+    result["primary_type"] = result["workout_type"]
+    result["secondary_type"] = result["sub_type"]
+    return result

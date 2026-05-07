@@ -129,17 +129,46 @@ def fallback_explanation(metrics: dict, signals: list[dict], focus: dict) -> str
             "A predictable week makes adaptation easier to judge. Rather than pushing another stimulus, the better next step is to hold the load steady, protect recovery, and rebuild confidence in the rhythm."
         )
 
+    if primary_key == "quality":
+        return (
+            f"{pattern} RunLab is pointing toward {focus_text} because the base is in place but the week lacks one clear performance stimulus.\n\n"
+            "Adding several hard sessions at once would muddy the signal and raise fatigue. One controlled, purposeful faster session each week gives a clear adaptation cue while keeping the rest of the structure intact."
+        )
+
+    if primary_key == "progression":
+        return (
+            f"{pattern} RunLab is pointing toward {focus_text} because the structure is sound but progression has stalled across multiple levers.\n\n"
+            "The right move is to progress one thing only over the next block, whether that is a small volume increase, a slightly longer long run, or a clearer quality stimulus. Changing several at once makes it impossible to read the response."
+        )
+
+    if primary_key == "maintenance":
+        return (
+            f"{pattern} RunLab is pointing toward {focus_text} because the current rhythm is broadly healthy.\n\n"
+            "The bigger risk now is over-correcting something that is already working. Protect the current pattern, make small controlled progressions, and only adjust if a clear gap appears."
+        )
+
     return (
         f"{pattern} RunLab is pointing toward {focus_text} because it is the clearest next lever in the recent training pattern.\n\n"
         "The aim is to change one thing at a time so the response is easy to judge. Adding more intensity or changing several levers at once would make it harder to know what is working and could raise fatigue unnecessarily."
     )
 
 
-def generate_ai_explanation(metrics: dict, signals: list[dict], focus: dict) -> str:
+def generate_ai_explanation(
+    metrics: dict,
+    signals: list[dict],
+    focus: dict,
+) -> tuple[str, bool]:
+    """
+    Returns (explanation_text, used_ai).
+
+    used_ai is True only when the OpenAI API was successfully called and
+    returned non-empty content. Otherwise the deterministic fallback is
+    used and used_ai is False.
+    """
     explanation = fallback_explanation(metrics, signals, focus)
 
     if not OPENAI_API_KEY:
-        return explanation
+        return explanation, False
 
     try:
         prompt = build_prompt(metrics, signals, focus)
@@ -159,9 +188,9 @@ def generate_ai_explanation(metrics: dict, signals: list[dict], focus: dict) -> 
         ai_text = response.choices[0].message.content
 
         if ai_text and ai_text.strip():
-            explanation = ai_text.strip()
+            return ai_text.strip(), True
 
     except Exception:
-        pass
+        return explanation, False
 
-    return explanation
+    return explanation, False

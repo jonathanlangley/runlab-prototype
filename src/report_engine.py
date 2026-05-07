@@ -27,6 +27,10 @@ from src.ui_text import (
 )
 
 
+class EmptyDataError(ValueError):
+    """Raised when the cleaned dataset contains no running activities."""
+
+
 SIGNAL_CATEGORY_BY_RULE_ID = {
     "consistency": "consistency",
     "volume": "volume",
@@ -233,6 +237,30 @@ def build_key_signal_detail(metrics: dict[str, Any], focus: dict[str, Any]) -> s
             f"RunLab detected {threshold} threshold sessions in the last 28 days. The missing link is controlled sustained work, not another race-level effort."
         )
 
+    if primary_key == "quality":
+        return (
+            f"You are averaging {weekly_km} km per week with the base in place, but the week lacks a clear performance stimulus. "
+            "One purposeful faster session is the missing signal."
+        )
+
+    if primary_key == "load_stability":
+        return (
+            f"Recent volume around {weekly_km} km per week has become variable or has dipped. "
+            "The limiter is load stability, not session quality."
+        )
+
+    if primary_key == "progression":
+        return (
+            "The structure is broadly sound, but progression has stalled across multiple levers. "
+            "The limiter is the absence of a clear progression signal."
+        )
+
+    if primary_key == "maintenance":
+        return (
+            f"At {run_days} run days and {weekly_km} km per week, the current pattern is broadly healthy. "
+            "There is no major limiter, so the focus is on protecting rhythm and progressing carefully."
+        )
+
     return focus.get("detail", "This is the clearest limiter in the recent training pattern.")
 
 
@@ -271,6 +299,13 @@ def build_product_report(
 
 def generate_runlab_report(df_raw: pd.DataFrame) -> dict[str, Any]:
     df = clean_data(df_raw)
+
+    if df is None or df.empty:
+        raise EmptyDataError(
+            "No running activities were found in the uploaded data. "
+            "RunLab needs at least a few runs with valid date, distance and duration to generate a report."
+        )
+
     weekly = weekly_summary(df)
     metrics = overall_metrics(df, weekly)
     signals = derive_signals(metrics)
@@ -290,7 +325,8 @@ def generate_runlab_report(df_raw: pd.DataFrame) -> dict[str, Any]:
     diagnosis_title, diagnosis_summary = build_focus_diagnosis(focus, metrics)
     why_points = build_why_this_matters(metrics, top_signals, focus)
     supporting_metrics = build_supporting_metrics(metrics)
-    ai_text = generate_ai_explanation(metrics, signals, focus)
+
+    ai_text, used_ai = generate_ai_explanation(metrics, signals, focus)
 
     product_report = build_product_report(
         metrics=metrics,
@@ -315,7 +351,7 @@ def generate_runlab_report(df_raw: pd.DataFrame) -> dict[str, Any]:
         "why_points": why_points,
         "supporting_metrics": supporting_metrics,
         "ai_text": ai_text,
-        "used_ai": True,
+        "used_ai": used_ai,
         "balance_df": balance_df,
         "detailed_balance_df": detailed_balance_df,
         "balance_note": balance_note,
