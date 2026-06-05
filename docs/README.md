@@ -48,6 +48,7 @@ Pre-beta testing of controlled demo scenarios.
 | Document | Contents |
 |----------|----------|
 | [FOUNDER_NOTES.md](FOUNDER_NOTES.md) | Product and validation priorities (internal) |
+| [NEXT_STEPS.md](NEXT_STEPS.md) | Action plan from validation through beta |
 | [changelog/rule-changes.md](changelog/rule-changes.md) | History of rule and threshold changes |
 
 ## Current validation goal
