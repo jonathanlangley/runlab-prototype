@@ -43,6 +43,15 @@ Pre-beta testing of controlled demo scenarios.
 | [classifier-expectations.md](validation/classifier-expectations.md) | Auto-classification test fixtures |
 | [beta-readiness-checklist.md](validation/beta-readiness-checklist.md) | Gate criteria before real-user beta |
 
+### Reviews
+
+Strategic and implementation reviews.
+
+| Document | Contents |
+|----------|----------|
+| [FABLE_REVIEW.md](reviews/FABLE_REVIEW.md) | Independent strategic review (historical artefact — do not edit) |
+| [CONSENSUS_REVIEW.md](reviews/CONSENSUS_REVIEW.md) | Consensus synthesis and implementation guide |
+
 ### Other
 
 | Document | Contents |
