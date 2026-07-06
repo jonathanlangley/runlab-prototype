@@ -170,12 +170,15 @@ streamlit run app.py
 
 ## 🗺️ Roadmap
 
+Aligned with [`VISION_AND_STRATEGY.md`](VISION_AND_STRATEGY.md). Current phase: engine validation and structured beta.
+
 * Improve onboarding and first-time user flow
-* Strava integration (automated data import)
-* Expanded runner personas (beginner → competitive)
-* AI-assisted training plan generation
-* Calendar-style training log view
-* Performance tracking and progression insights
+* Strava CSV import improvements (automated API integration deferred)
+* Prescribe → observe → confirm loop (longitudinal training intelligence)
+* Outcome-tracked diagnosis accuracy
+* Coach triage / second-opinion tooling (after individual validation)
+
+**Explicitly not on the roadmap:** daily plan generation, chat coach, broad persona expansion, readiness/HRV scoring as a product surface.
 
 ---
 

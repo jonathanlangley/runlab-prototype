@@ -2,6 +2,14 @@ from __future__ import annotations
 
 import pandas as pd
 
+WORKOUT_TYPE_ALIASES = {
+    "long": "long run",
+    "interval": "vo2",
+    "intervals": "vo2",
+    "tempo": "threshold",
+}
+
+
 COLUMN_MAPPING = {
     "date": "date",
     "activity_date": "date",
@@ -89,6 +97,7 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
 
     df["activity_type"] = df["activity_type"].astype(str).str.lower().str.strip()
     df["workout_type"] = df["workout_type"].astype(str).str.lower().str.strip()
+    df["workout_type"] = df["workout_type"].replace(WORKOUT_TYPE_ALIASES)
 
     run_keywords = {"run", "running", "trail run", "treadmill run"}
     df = df[df["activity_type"].isin(run_keywords)]

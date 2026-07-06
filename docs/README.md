@@ -64,13 +64,17 @@ Strategic and implementation reviews.
 
 **6/6 core demo scenarios must pass** automated and manual validation before engaging beta testers.
 
-As of the initial documentation draft:
+As of 2026-07-06:
 
-- **1/6 scenarios pass** with the engine as shipped (`V1-inconsistent`)
-- **4/6 fail** due to workout-type vocabulary mismatch (`long` / `interval` vs canonical `long run` / `vo2`)
-- **1/6 scenario file does not exist yet** (`V6-declining-load`)
+- **6/6 scenarios pass** (automated in `tests/test_demo_scenarios.py`)
+- Workout-type alias normalisation implemented
+- V6 `declining_load.csv` exists and is registered in the app
 
-See [validation-pack.md](validation/validation-pack.md) for details and remediation order.
+See [validation-pack.md](validation/validation-pack.md) for details.
+
+## Archived code trees
+
+The repository contains legacy backup directories (`src_pre/`, `src_pre2/`, `pybackup1.0/`, `backup/`) with divergent earlier engine and app implementations. **Only `src/` and `app.py` are active.** Do not import from backup trees. They are retained for historical reference pending founder review before deletion.
 
 ## Source code map
 
@@ -89,4 +93,4 @@ See [validation-pack.md](validation/validation-pack.md) for details and remediat
 1. Read [decision-engine/overview.md](decision-engine/overview.md) for the big picture.
 2. Read [validation/validation-pack.md](validation/validation-pack.md) before changing rules or scenarios.
 3. Update [changelog/rule-changes.md](changelog/rule-changes.md) whenever thresholds or priority order change.
-4. Re-run the validation suite after any engine change (tests to be added separately).
+4. Re-run the validation suite after any engine change (`pytest`).

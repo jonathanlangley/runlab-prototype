@@ -62,8 +62,8 @@ Earlier in this list wins when scores are similar.
 3. Weekly km < 50 → `volume`
 4. Declining volume trend + km ≥ 50 → `load_stability`
 5. **Long runs in 28d == 0 → `long_run`**
-6. No threshold + quality ≤ 2 → `threshold`
-7. No quality sessions + km ≥ 50 → `quality`
+6. **No quality sessions + km ≥ 50 → `quality`**
+7. **No threshold + quality ≤ 2 → `threshold`**
 8. Else → highest score if ≥ 55, else `maintenance`
 
 **Validation note:** Gate 5 is sensitive to workout-type labelling. Mislabelled `long` sessions trigger false `long_run` limiters.

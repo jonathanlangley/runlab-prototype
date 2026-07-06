@@ -30,19 +30,19 @@ Prove that on **controlled demo scenarios**, RunLab:
 | ID | Scenario | File | Expected `primary_key` | Current status |
 |----|----------|------|------------------------|----------------|
 | V1 | Inconsistent training | `data/inconsistent_training.csv` | `consistency` | **PASS** |
-| V2 | Low aerobic volume | `data/sample_runs.csv` | `volume` | **PASS** (limiter OK; label bug affects signals) |
-| V3 | Too much intensity | `data/too_much_intensity.csv` | `aerobic_support` | **FAIL** → `long_run` |
-| V4 | High volume, no quality | `data/high_volume_no_quality.csv` | `quality` | **FAIL** → `long_run` |
-| V5 | Structured plateau | `data/near_optimal_but_plateauing.csv` | `progression` | **FAIL** → `long_run` |
-| V6 | Declining load | `data/declining_load.csv` | `load_stability` | **NOT CREATED** |
+| V2 | Low aerobic volume | `data/sample_runs.csv` | `volume` | **PASS** |
+| V3 | Too much intensity | `data/too_much_intensity.csv` | `aerobic_support` | **PASS** |
+| V4 | High volume, no quality | `data/high_volume_no_quality.csv` | `quality` | **PASS** |
+| V5 | Structured plateau | `data/near_optimal_but_plateauing.csv` | `progression` | **PASS** |
+| V6 | Declining load | `data/declining_load.csv` | `load_stability` | **PASS** |
 
 **Optional control:** [V7-maintenance-control.md](scenario-specs/V7-maintenance-control.md) — not required for 6/6 gate.
 
-### Observed pass rate (engine as shipped)
+### Observed pass rate
 
-**1–2 / 6** depending on whether V2 signal accuracy is required. Primary limiter passes for V1 and V2 only.
+**6 / 6** — enforced by `tests/test_demo_scenarios.py` and CI.
 
-## Root cause of current failures
+## Root cause of prior failures (resolved 2026-07-06)
 
 Demo CSVs use workout labels `long` and `interval`. Metrics count only `long run` and `vo2`.
 

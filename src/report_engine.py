@@ -11,6 +11,7 @@ from src.balance import (
     build_detailed_balance_df,
 )
 from src.data_loader import clean_data
+from src.runlab_config import ENGINE_VERSION
 from src.focus import determine_focus
 from src.hierarchy import build_training_hierarchy
 from src.metrics import overall_metrics, weekly_summary
@@ -337,6 +338,7 @@ def generate_runlab_report(df_raw: pd.DataFrame) -> dict[str, Any]:
     )
 
     return {
+        "engine_version": ENGINE_VERSION,
         "df": df,
         "weekly": weekly,
         "metrics": metrics,

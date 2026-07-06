@@ -1,6 +1,6 @@
 # Next Steps
 
-Action plan from the current state (decision-engine docs complete, **1–2/6 scenarios passing**) through structured beta. **No application code has been changed yet** for these steps.
+Action plan from the current state (**6/6 scenarios passing**, automated tests in place) through structured beta.
 
 Related docs:
 

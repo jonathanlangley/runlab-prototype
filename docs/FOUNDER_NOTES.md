@@ -85,11 +85,9 @@ Treat juniors as a **separate product category** if pursued at all — not a nea
 
 **6/6 validation scenario pass before beta testers.**
 
-| Status (as of initial docs) | Scenarios |
+| Status (2026-07-06) | Scenarios |
 |-----------------------------|-----------|
-| **PASS** | V1 consistency, V2 volume (primary limiter) |
-| **FAIL** | V3, V4, V5 — wrong limiter due to label bug |
-| **NOT CREATED** | V6 declining load |
+| **PASS** | V1–V6 (6/6) |
 
 Beta testers should **not** be engaged until the validation suite passes. See [beta-readiness-checklist.md](validation/beta-readiness-checklist.md).
 
@@ -126,7 +124,7 @@ Demo CSV files use workout labels `long` and `interval`. The metrics engine coun
 
 This causes `long_runs_last_28 = 0` in most demos and triggers the **`long_run` hard gate** in `choose_primary_limiter()` before the intended limiter is evaluated.
 
-**Fix planned:** normalise aliases in `data_loader.py` and align demo CSV labels. **Not implemented yet.**
+**Fix implemented:** alias normalisation in `data_loader.py` (2026-07-06).
 
 Details: [canonical-schema.md](decision-engine/canonical-schema.md), [rule-changes.md](changelog/rule-changes.md).
 

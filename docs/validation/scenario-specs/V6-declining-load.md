@@ -9,8 +9,8 @@ Validate that a runner with **adequate consistency and moderate-high volume** bu
 | Field | Value |
 |-------|-------|
 | **Path** | `data/declining_load.csv` |
-| **App label** | **Not registered in app yet** |
-| **Status** | **FILE NOT CREATED** |
+| **App label** | Declining load |
+| **Status** | **PASS** (2026-07-06) |
 
 ## Training pattern (design specification)
 
@@ -88,7 +88,7 @@ Recent load has dropped. Rebuild a predictable week before pushing fitness or in
 
 ## Current validation status
 
-**NOT RUN** — scenario file does not exist.
+**PASS** — `primary_key == "load_stability"` (2026-07-06).
 
 ## Implementation checklist
 

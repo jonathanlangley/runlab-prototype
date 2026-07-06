@@ -25,9 +25,9 @@ START
   │
   ├─ long_runs_last_28 == 0? ───────────────────────────► long_run
   │
-  ├─ threshold_sessions == 0 AND quality_sessions ≤ 2? ─► threshold
-  │
   ├─ quality_sessions == 0 AND weekly_km ≥ 50? ────────► quality
+  │
+  ├─ threshold_sessions == 0 AND quality_sessions ≤ 2? ─► threshold
   │
   └─ ELSE rank by build_limiter_scores
         highest score if ≥ 55 ──────────────────────────► that domain
@@ -43,15 +43,17 @@ START
 | 3 | `recent_avg_weekly_km < 50` | `volume` |
 | 4 | `volume_trend == "declining"` AND `recent_avg_weekly_km ≥ 50` | `load_stability` |
 | 5 | `long_runs_last_28 == 0` | `long_run` |
-| 6 | `threshold_sessions_last_28 == 0` AND `quality_runs_last_28 ≤ 2` | `threshold` |
-| 7 | `quality_runs_last_28 == 0` AND `recent_avg_weekly_km ≥ 50` | `quality` |
+| 6 | `quality_runs_last_28 == 0` AND `recent_avg_weekly_km ≥ 50` | `quality` |
+| 7 | `threshold_sessions_last_28 == 0` AND `quality_runs_last_28 ≤ 2` | `threshold` |
 | 8 | Score-based | See below |
 
-### Known validation issue: Gate 5
+Gate 6 (quality) runs before gate 7 (threshold) so high-volume runners with **no** quality sessions receive `quality`, not `threshold`.
 
-Gate 5 runs **before** gates 6–7. If long runs exist but are labelled `long` instead of `long run`, the engine returns `long_run` incorrectly and never reaches `quality` or `aerobic_support`.
+### Known validation issue: Gate 5 (resolved)
 
-**Status:** documented; fix pending (alias normalisation).
+Gate 5 runs **before** gates 6–7. If long runs exist but are labelled `long` instead of `long run`, the engine returns `long_run` incorrectly.
+
+**Status:** resolved — alias normalisation in `data_loader.py` (2026-07-06).
 
 ## Score model (`build_limiter_scores`)
 

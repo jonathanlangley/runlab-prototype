@@ -226,10 +226,10 @@ def choose_primary_limiter(metrics: dict[str, Any], scores: dict[str, int]) -> s
         return "load_stability"
     if long_runs == 0:
         return "long_run"
-    if threshold_sessions == 0 and quality_sessions <= 2:
-        return "threshold"
     if quality_sessions == 0 and weekly_km >= 50:
         return "quality"
+    if threshold_sessions == 0 and quality_sessions <= 2:
+        return "threshold"
 
     ranked = sorted(
         scores.items(),

@@ -68,10 +68,10 @@ Several demo CSV files and external exports use non-canonical labels. These **do
 
 | Alias (seen in data) | Should map to | Status |
 |----------------------|---------------|--------|
-| `long` | `long run` | **Not normalised in code yet** — known bug |
-| `interval` | `vo2` | **Not normalised in code yet** — known bug |
-| `intervals` | `vo2` | Documented; not implemented |
-| `tempo` | `threshold` | Documented; not implemented |
+| `long` | `long run` | **Implemented** in `data_loader.py` |
+| `interval` | `vo2` | **Implemented** in `data_loader.py` |
+| `intervals` | `vo2` | **Implemented** in `data_loader.py` |
+| `tempo` | `threshold` | **Implemented** in `data_loader.py` |
 
 **Validation impact:** demo files `sample_runs.csv`, `near_optimal_but_plateauing.csv`, `consistent_plateau.csv`, `high_volume_no_quality.csv`, and `too_much_intensity.csv` use `long` and/or `interval`. This causes `long_runs_last_28 = 0` and incorrect limiter selection.
 
